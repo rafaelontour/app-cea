@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CEA</string>
+    <string name="bmi_warning">BMI is only an estimate and does not replace a professional evaluation.</string>
+    <string name="notification_channel_hydration">Water reminders</string>
+    <string name="notification_hydration_title">Time to drink water</string>
+    <string name="notification_hydration_text">Log your daily hydration in CEA.</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cea_black">#07090C</color>
+    <color name="cea_surface">#12161D</color>
+    <color name="cea_card">#1B2028</color>
+    <color name="cea_card_alt">#232A33</color>
+    <color name="cea_text">#F5F7FA</color>
+    <color name="cea_muted">#8E98A8</color>
+    <color name="cea_green">#35FF78</color>
+    <color name="cea_blue">#2D8CFF</color>
+    <color name="cea_red">#FF4757</color>
+</resources>

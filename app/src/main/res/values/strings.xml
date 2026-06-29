@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CEA</string>
+    <string name="bmi_warning">O IMC e apenas uma estimativa e nao substitui avaliacao profissional.</string>
+    <string name="notification_channel_hydration">Lembretes de agua</string>
+    <string name="notification_hydration_title">Hora de beber agua</string>
+    <string name="notification_hydration_text">Registre sua hidratacao diaria no CEA.</string>
+</resources>

@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import br.com.cea.model.Exercise
 import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
+import br.com.cea.model.WeightLog
 import org.json.JSONArray
 
 class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
@@ -488,8 +489,51 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         )
     }
 
+    fun logWeight(weightKg: Double, heightCm: Double): Long {
+        val bmi = if (heightCm > 0) weightKg / ((heightCm / 100.0) * (heightCm / 100.0)) else 0.0
+        val classification = when {
+            bmi < 18.5 -> "Abaixo do peso"
+            bmi < 25.0 -> "Peso normal"
+            bmi < 30.0 -> "Sobrepeso"
+            else -> "Obesidade"
+        }
+
+        writableDatabase.execSQL("UPDATE users SET weight_kg = ?", arrayOf(weightKg))
+
+        return writableDatabase.insert(
+            "weight_bmi_history",
+            null,
+            ContentValues().apply {
+                put("user_id", 1)
+                put("weight_kg", weightKg)
+                put("height_cm", heightCm)
+                put("bmi", bmi)
+                put("classification", classification)
+                put("recorded_at", System.currentTimeMillis())
+            }
+        )
+    }
+
+    fun getWeightHistory(): List<WeightLog> {
+        val format = java.text.SimpleDateFormat("dd/MM", java.util.Locale.getDefault())
+        return buildList {
+            readableDatabase.rawQuery(
+                "SELECT id, weight_kg, recorded_at FROM weight_bmi_history ORDER BY recorded_at ASC",
+                null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(0)
+                    val weight = cursor.getDouble(1)
+                    val timestamp = cursor.getLong(2)
+                    val dateStr = format.format(java.util.Date(timestamp))
+                    add(WeightLog(id, weight, dateStr))
+                }
+            }
+        }
+    }
+
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 3
+        private const val DB_VERSION = 5
     }
 }

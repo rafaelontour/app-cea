@@ -80,6 +80,7 @@ import br.com.cea.model.DayState
 import br.com.cea.model.Exercise
 import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
+import br.com.cea.model.WeightLog
 import br.com.cea.service.AnalyticsTracker
 import br.com.cea.service.BmiService
 import br.com.cea.service.HydrationReminderReceiver
@@ -290,7 +291,15 @@ private fun CeaApp(activity: MainActivity) {
                     screen = Screen.MyWorkouts
                 }
             )
-            Screen.Progress -> ProgressScreen(modifier, profile, bmiService)
+            Screen.Progress -> ProgressScreen(
+                modifier = modifier,
+                profile = profile,
+                bmiService = bmiService,
+                database = database,
+                onWeightLogged = {
+                    refresh++
+                }
+            )
             Screen.Exercises -> ExercisesScreen(modifier, database.listExercises(), selectedExercises)
             Screen.Calendar -> CalendarScreen(modifier, onStart = { screen = Screen.Exercises })
             Screen.Profile -> ProfileScreen(
@@ -688,8 +697,70 @@ private fun ExploreScreen(
 }
 
 @Composable
-private fun ProgressScreen(modifier: Modifier, profile: UserProfile, bmiService: BmiService) {
+private fun WeightProgressionChart(history: List<WeightLog>) {
+    if (history.isEmpty()) return
+    val maxWeight = history.maxOf { it.weightKg }
+    val minWeight = history.minOf { it.weightKg }
+    val weightRange = (maxWeight - minWeight).coerceAtLeast(1.0)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(100.dp)
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        history.takeLast(7).forEach { log ->
+            val fraction = if (weightRange > 0) {
+                0.2f + 0.8f * ((log.weightKg - minWeight) / weightRange).toFloat()
+            } else {
+                0.6f
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Text(
+                    text = "${log.weightKg}kg",
+                    color = CeaColors.Text,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((60 * fraction).dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(CeaColors.Green)
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = log.date,
+                    color = CeaColors.Muted,
+                    fontSize = 9.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressScreen(
+    modifier: Modifier,
+    profile: UserProfile,
+    bmiService: BmiService,
+    database: CeaDatabaseHelper,
+    onWeightLogged: () -> Unit
+) {
+    var weightInput by remember { mutableStateOf("") }
+    var refreshHistory by remember { mutableIntStateOf(0) }
+    val history = remember(refreshHistory) { database.getWeightHistory() }
     val bmi = bmiService.calculate(profile.weightKg, profile.heightCm)
+
     Column(modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricCard("18", "Concluidos", Modifier.weight(1f))
@@ -697,6 +768,50 @@ private fun ProgressScreen(modifier: Modifier, profile: UserProfile, bmiService:
             MetricCard("7", "Sequencia", Modifier.weight(1f))
         }
         Spacer(Modifier.height(16.dp))
+
+        CeaCard {
+            SectionTitle("Novo registro de peso")
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CeaInput(
+                    label = "Peso (kg)",
+                    value = weightInput,
+                    modifier = Modifier.weight(1f),
+                    onValueChange = { weightInput = it }
+                )
+                Button(
+                    onClick = {
+                        val parsed = weightInput.toDoubleOrNull()
+                        if (parsed != null && parsed > 0) {
+                            database.logWeight(parsed, profile.heightCm)
+                            weightInput = ""
+                            refreshHistory++
+                            onWeightLogged()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CeaColors.Green),
+                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.height(58.dp)
+                ) {
+                    Text("Registrar", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+
+        if (history.isNotEmpty()) {
+            CeaCard {
+                SectionTitle("Evolucao do peso")
+                Spacer(Modifier.height(12.dp))
+                WeightProgressionChart(history)
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
         CeaCard {
             SectionTitle("Frequencia semanal")
             Spacer(Modifier.height(12.dp))

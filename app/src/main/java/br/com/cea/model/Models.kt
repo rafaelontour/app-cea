@@ -48,3 +48,9 @@ enum class DayState {
     Scheduled,
     Missed
 }
+
+data class WeightLog(
+    val id: Long = 0,
+    val weightKg: Double,
+    val date: String
+)

@@ -139,20 +139,145 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
     }
 
     fun saveWorkout(workout: Workout): Long {
-        return writableDatabase.insert(
-            "workouts",
-            null,
-            ContentValues().apply {
-                put("user_id", 1)
-                put("title", workout.title)
-                put("objective", workout.objective)
-                put("level", workout.level)
-                put("duration", workout.duration)
-                put("is_public", if (workout.publicWorkout) 1 else 0)
-                put("is_imported", if (workout.imported) 1 else 0)
-                put("origin_user_name", workout.origin)
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val workoutId = db.insert(
+                "workouts",
+                null,
+                ContentValues().apply {
+                    put("user_id", 1)
+                    put("title", workout.title)
+                    put("objective", workout.objective)
+                    put("level", workout.level)
+                    put("duration", workout.duration)
+                    put("is_public", if (workout.publicWorkout) 1 else 0)
+                    put("is_imported", if (workout.imported) 1 else 0)
+                    put("origin_user_name", workout.origin)
+                }
+            )
+
+            workout.exercises.forEachIndexed { index, exerciseName ->
+                db.insert(
+                    "workout_exercises",
+                    null,
+                    ContentValues().apply {
+                        put("workout_id", workoutId)
+                        put("exercise_name", exerciseName)
+                        put("sets", 3)
+                        put("reps", "10")
+                        put("duration_seconds", 0)
+                        put("rest_seconds", 60)
+                        put("order_index", index)
+                    }
+                )
             }
-        )
+            db.setTransactionSuccessful()
+            return workoutId
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun getWorkoutExercises(workoutId: Long): List<String> {
+        return buildList {
+            readableDatabase.rawQuery(
+                "SELECT exercise_name FROM workout_exercises WHERE workout_id = ? ORDER BY order_index",
+                arrayOf(workoutId.toString())
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    add(cursor.getString(0))
+                }
+            }
+        }
+    }
+
+    fun getWorkout(workoutId: Long): Workout? {
+        readableDatabase.rawQuery("SELECT * FROM workouts WHERE id = ? LIMIT 1", arrayOf(workoutId.toString())).use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            return Workout(
+                id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                title = cursor.getString(cursor.getColumnIndexOrThrow("title")),
+                objective = cursor.getString(cursor.getColumnIndexOrThrow("objective")),
+                level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
+                duration = cursor.getString(cursor.getColumnIndexOrThrow("duration")),
+                publicWorkout = cursor.getInt(cursor.getColumnIndexOrThrow("is_public")) == 1,
+                imported = cursor.getInt(cursor.getColumnIndexOrThrow("is_imported")) == 1,
+                origin = cursor.getString(cursor.getColumnIndexOrThrow("origin_user_name")),
+                exercises = getWorkoutExercises(workoutId)
+            )
+        }
+    }
+
+    fun updateWorkout(workout: Workout) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.update(
+                "workouts",
+                ContentValues().apply {
+                    put("title", workout.title)
+                    put("objective", workout.objective)
+                    put("level", workout.level)
+                    put("duration", workout.duration)
+                },
+                "id = ?",
+                arrayOf(workout.id.toString())
+            )
+
+            db.delete("workout_exercises", "workout_id = ?", arrayOf(workout.id.toString()))
+            workout.exercises.forEachIndexed { index, exerciseName ->
+                db.insert(
+                    "workout_exercises",
+                    null,
+                    ContentValues().apply {
+                        put("workout_id", workout.id)
+                        put("exercise_name", exerciseName)
+                        put("sets", 3)
+                        put("reps", "10")
+                        put("duration_seconds", 0)
+                        put("rest_seconds", 60)
+                        put("order_index", index)
+                    }
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun deleteWorkout(workoutId: Long) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("workout_exercises", "workout_id = ?", arrayOf(workoutId.toString()))
+            db.delete("workouts", "id = ?", arrayOf(workoutId.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun duplicateWorkout(workoutId: Long) {
+        val original = getWorkout(workoutId) ?: return
+
+        val titleBase = original.title.replace(Regex("\\s\\d+$"), "")
+        var count = 1
+        var newTitle = "$titleBase $count"
+
+        val db = readableDatabase
+        while (true) {
+            val cursor = db.rawQuery("SELECT COUNT(*) FROM workouts WHERE title = ?", arrayOf(newTitle))
+            val exists = cursor.use {
+                if (it.moveToFirst()) it.getInt(0) > 0 else false
+            }
+            if (!exists) break
+            count++
+            newTitle = "$titleBase $count"
+        }
+
+        saveWorkout(original.copy(id = 0, title = newTitle))
     }
 
     fun listWorkouts(publicOnly: Boolean = false): List<Workout> {
@@ -165,16 +290,18 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         return buildList {
             readableDatabase.rawQuery(sql, null).use { cursor ->
                 while (cursor.moveToNext()) {
+                    val id = cursor.getLong(cursor.getColumnIndexOrThrow("id"))
                     add(
                         Workout(
-                            id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                            id = id,
                             title = cursor.getString(cursor.getColumnIndexOrThrow("title")),
                             objective = cursor.getString(cursor.getColumnIndexOrThrow("objective")),
                             level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
                             duration = cursor.getString(cursor.getColumnIndexOrThrow("duration")),
                             publicWorkout = cursor.getInt(cursor.getColumnIndexOrThrow("is_public")) == 1,
                             imported = cursor.getInt(cursor.getColumnIndexOrThrow("is_imported")) == 1,
-                            origin = cursor.getString(cursor.getColumnIndexOrThrow("origin_user_name"))
+                            origin = cursor.getString(cursor.getColumnIndexOrThrow("origin_user_name")),
+                            exercises = getWorkoutExercises(id)
                         )
                     )
                 }

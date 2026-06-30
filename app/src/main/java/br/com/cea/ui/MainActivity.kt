@@ -55,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -179,6 +180,8 @@ private fun CeaApp(activity: MainActivity) {
         mutableStateOf(if (preferences.getBoolean("profile_done", false)) Screen.Home else Screen.ProfileSetup)
     }
     var refresh by remember { mutableIntStateOf(0) }
+    val selectedExercises = remember { mutableStateListOf<Exercise>() }
+    var editingWorkoutId by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(screen, refresh) {
         profile = database.getProfile()
@@ -231,11 +234,20 @@ private fun CeaApp(activity: MainActivity) {
             Screen.CreateWorkout -> CreateWorkoutScreen(
                 modifier = modifier,
                 profile = profile,
-                recommendationService = recommendationService,
+                editingWorkoutId = editingWorkoutId,
+                database = database,
+                selectedExercises = selectedExercises,
                 onExercises = { screen = Screen.Exercises },
                 onSave = { workout ->
-                    database.saveWorkout(workout)
-                    analytics.track(context, "workout_generated")
+                    if (editingWorkoutId != null) {
+                        database.updateWorkout(workout.copy(id = editingWorkoutId!!))
+                        analytics.track(context, "workout_updated")
+                    } else {
+                        database.saveWorkout(workout)
+                        analytics.track(context, "workout_generated")
+                    }
+                    editingWorkoutId = null
+                    selectedExercises.clear()
                     refresh++
                     screen = Screen.MyWorkouts
                 }
@@ -243,8 +255,29 @@ private fun CeaApp(activity: MainActivity) {
             Screen.MyWorkouts -> MyWorkoutsScreen(
                 modifier = modifier,
                 workouts = database.listWorkouts(publicOnly = false),
-                onNew = { screen = Screen.CreateWorkout },
-                onStart = { screen = Screen.Exercises }
+                onNew = {
+                    editingWorkoutId = null
+                    selectedExercises.clear()
+                    screen = Screen.CreateWorkout
+                },
+                onStart = { screen = Screen.Exercises },
+                onEdit = { workout ->
+                    editingWorkoutId = workout.id
+                    selectedExercises.clear()
+                    val catalog = database.listExercises()
+                    workout.exercises.forEach { name ->
+                        catalog.find { it.name == name }?.let { selectedExercises.add(it) }
+                    }
+                    screen = Screen.CreateWorkout
+                },
+                onDuplicate = { workout ->
+                    database.duplicateWorkout(workout.id)
+                    refresh++
+                },
+                onDelete = { workout ->
+                    database.deleteWorkout(workout.id)
+                    refresh++
+                }
             )
             Screen.Explore -> ExploreScreen(
                 modifier = modifier,
@@ -258,7 +291,7 @@ private fun CeaApp(activity: MainActivity) {
                 }
             )
             Screen.Progress -> ProgressScreen(modifier, profile, bmiService)
-            Screen.Exercises -> ExercisesScreen(modifier, database.listExercises())
+            Screen.Exercises -> ExercisesScreen(modifier, database.listExercises(), selectedExercises)
             Screen.Calendar -> CalendarScreen(modifier, onStart = { screen = Screen.Exercises })
             Screen.Profile -> ProfileScreen(
                 modifier = modifier,
@@ -522,14 +555,20 @@ private fun HomeScreen(
 private fun CreateWorkoutScreen(
     modifier: Modifier,
     profile: UserProfile,
-    recommendationService: WorkoutRecommendationService,
+    editingWorkoutId: Long?,
+    database: CeaDatabaseHelper,
+    selectedExercises: MutableList<Exercise>,
     onExercises: () -> Unit,
     onSave: (Workout) -> Unit
 ) {
-    var name by remember { mutableStateOf("Push hipertrofia A") }
-    var objective by remember { mutableStateOf(profile.objective) }
-    var level by remember { mutableStateOf(profile.level) }
-    var duration by remember { mutableStateOf("60 min") }
+    val editingWorkout = remember(editingWorkoutId) {
+        editingWorkoutId?.let { database.getWorkout(it) }
+    }
+
+    var name by remember(editingWorkout) { mutableStateOf(editingWorkout?.title ?: "Push hipertrofia A") }
+    var objective by remember(editingWorkout) { mutableStateOf(editingWorkout?.objective ?: profile.objective) }
+    var level by remember(editingWorkout) { mutableStateOf(editingWorkout?.level ?: profile.level) }
+    var duration by remember(editingWorkout) { mutableStateOf(editingWorkout?.duration ?: "60 min") }
     var muscle by remember { mutableStateOf("Peito") }
 
     Column(modifier) {
@@ -549,21 +588,36 @@ private fun CreateWorkoutScreen(
         Spacer(Modifier.height(16.dp))
         PrimaryAction("+ Adicionar exercicio", Modifier.fillMaxWidth(), onExercises)
         Spacer(Modifier.height(18.dp))
-        SectionTitle("Exercicios")
+        SectionTitle("Exercicios selecionados")
         Spacer(Modifier.height(8.dp))
-        ExerciseRow("1", "Supino reto", "4 series - 8/10 reps - 60 kg")
-        ExerciseRow("2", "Desenvolvimento", "3 series - 10 reps - 22 kg")
-        ExerciseRow("3", "Triceps corda", "3 series - 12 reps")
+        if (selectedExercises.isEmpty()) {
+            Text(
+                text = "Nenhum exercício adicionado. Clique acima para adicionar.",
+                color = CeaColors.Muted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            selectedExercises.forEachIndexed { index, exercise ->
+                ExerciseRow(
+                    index = (index + 1).toString(),
+                    exercise = exercise,
+                    onClick = {
+                        selectedExercises.removeAt(index)
+                    }
+                )
+            }
+        }
         Spacer(Modifier.height(14.dp))
         PrimaryAction("Salvar treino", Modifier.fillMaxWidth()) {
-            val base = recommendationService.recommend(profile.copy(objective = objective, level = level))
             onSave(
-                base.copy(
-                    title = name.ifBlank { base.title },
+                Workout(
+                    title = name.ifBlank { "Meu Treino" },
                     objective = objective,
                     level = level,
                     duration = duration,
-                    publicWorkout = true
+                    publicWorkout = true,
+                    exercises = selectedExercises.map { it.name }
                 )
             )
         }
@@ -575,7 +629,10 @@ private fun MyWorkoutsScreen(
     modifier: Modifier,
     workouts: List<Workout>,
     onNew: () -> Unit,
-    onStart: () -> Unit
+    onStart: () -> Unit,
+    onEdit: (Workout) -> Unit,
+    onDuplicate: (Workout) -> Unit,
+    onDelete: (Workout) -> Unit
 ) {
     Column(modifier) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -586,9 +643,12 @@ private fun MyWorkoutsScreen(
             val origin = if (workout.imported && workout.origin != null) " - Importado de ${workout.origin}" else ""
             WorkoutRow(
                 title = workout.title,
-                subtitle = "${workout.objective} - ${workout.duration}$origin\nEditar  Duplicar  Excluir",
+                subtitle = "${workout.objective} - ${workout.duration}$origin",
                 action = "Iniciar",
-                onClick = onStart
+                onStart = onStart,
+                onEdit = { onEdit(workout) },
+                onDuplicate = { onDuplicate(workout) },
+                onDelete = { onDelete(workout) }
             )
             Spacer(Modifier.height(10.dp))
         }
@@ -620,7 +680,7 @@ private fun ExploreScreen(
                     title = workout.title,
                     subtitle = "${workout.objective} - ${workout.level} - ${workout.duration}",
                     action = "Importar",
-                    onClick = { onImport(workout) }
+                    onStart = { onImport(workout) }
                 )
                 Spacer(Modifier.height(10.dp))
             }
@@ -674,7 +734,11 @@ private fun ProgressScreen(modifier: Modifier, profile: UserProfile, bmiService:
 }
 
 @Composable
-private fun ExercisesScreen(modifier: Modifier, exercises: List<Exercise>) {
+private fun ExercisesScreen(
+    modifier: Modifier,
+    exercises: List<Exercise>,
+    selectedExercises: MutableList<Exercise>
+) {
     var query by remember { mutableStateOf("") }
     var muscle by remember { mutableStateOf("") } // Empty = All muscles
     var levelFilter by remember { mutableStateOf("") } // Empty = All levels
@@ -781,6 +845,7 @@ private fun ExercisesScreen(modifier: Modifier, exercises: List<Exercise>) {
     if (selectedExercise != null) {
         ExerciseDetailsDialog(
             exercise = selectedExercise!!,
+            selectedExercises = selectedExercises,
             onDismiss = { selectedExercise = null }
         )
     }
@@ -1415,15 +1480,56 @@ private fun ShortcutCard(icon: String, label: String, modifier: Modifier, onClic
 }
 
 @Composable
-private fun WorkoutRow(title: String, subtitle: String, action: String, onClick: () -> Unit) {
+private fun WorkoutRow(
+    title: String,
+    subtitle: String,
+    action: String,
+    onStart: () -> Unit,
+    onEdit: (() -> Unit)? = null,
+    onDuplicate: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
     CeaCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, color = CeaColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(subtitle, color = CeaColors.Muted, fontSize = 11.sp)
+
+                if (onEdit != null || onDuplicate != null || onDelete != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (onEdit != null) {
+                            Text(
+                                text = "Editar",
+                                color = CeaColors.Green,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable(onClick = onEdit)
+                            )
+                        }
+                        if (onDuplicate != null) {
+                            Text(
+                                text = "Duplicar",
+                                color = CeaColors.Blue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable(onClick = onDuplicate)
+                            )
+                        }
+                        if (onDelete != null) {
+                            Text(
+                                text = "Excluir",
+                                color = CeaColors.Red,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable(onClick = onDelete)
+                            )
+                        }
+                    }
+                }
             }
             Spacer(Modifier.width(14.dp))
-            SmallAction(action, onClick)
+            SmallAction(action, onStart)
         }
     }
 }
@@ -1524,7 +1630,13 @@ private fun ExerciseRow(index: String, exercise: Exercise, onClick: () -> Unit) 
 }
 
 @Composable
-private fun ExerciseDetailsDialog(exercise: Exercise, onDismiss: () -> Unit) {
+private fun ExerciseDetailsDialog(
+    exercise: Exercise,
+    selectedExercises: MutableList<Exercise>,
+    onDismiss: () -> Unit
+) {
+    val isAlreadyAdded = selectedExercises.any { it.name == exercise.name }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -1558,6 +1670,30 @@ private fun ExerciseDetailsDialog(exercise: Exercise, onDismiss: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatusPill(exercise.muscleGroup, CeaColors.Blue)
                     StatusPill(exercise.level, CeaColors.Green)
+                }
+                Spacer(Modifier.height(16.dp))
+
+                // Add to Workout Button
+                Button(
+                    onClick = {
+                        if (isAlreadyAdded) {
+                            selectedExercises.removeAll { it.name == exercise.name }
+                        } else {
+                            selectedExercises.add(exercise)
+                        }
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isAlreadyAdded) CeaColors.Red else CeaColors.Green
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = if (isAlreadyAdded) "Remover do Treino" else "Adicionar ao Treino",
+                        color = if (isAlreadyAdded) Color.White else Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
 

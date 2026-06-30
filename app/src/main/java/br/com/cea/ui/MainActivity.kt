@@ -72,6 +72,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import br.com.cea.R
+import java.util.Calendar
+import java.util.Locale
 import br.com.cea.data.CeaDatabaseHelper
 import br.com.cea.model.DayState
 import br.com.cea.model.Exercise
@@ -972,27 +974,109 @@ private fun FilterDialog(
 
 @Composable
 private fun CalendarScreen(modifier: Modifier, onStart: () -> Unit) {
-    val days = (1..30).map {
-        val state = when (it) {
-            4, 10, 17, 20 -> DayState.Completed
-            8 -> DayState.Missed
-            12, 24 -> DayState.Scheduled
-            else -> DayState.Empty
+    var currentMonthOffset by remember { mutableIntStateOf(0) }
+
+    val calendar = remember(currentMonthOffset) {
+        Calendar.getInstance().apply {
+            set(Calendar.YEAR, 2026)
+            set(Calendar.MONTH, Calendar.JUNE)
+            add(Calendar.MONTH, currentMonthOffset)
+            set(Calendar.DAY_OF_MONTH, 1)
         }
-        it to state
+    }
+
+    val monthName = remember(calendar) {
+        calendar.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale("pt", "BR"))
+            ?.replaceFirstChar { it.uppercase() } ?: ""
+    }
+    val year = remember(calendar) { calendar.get(Calendar.YEAR) }
+    val totalDays = remember(calendar) { calendar.getActualMaximum(Calendar.DAY_OF_MONTH) }
+    val firstDayOfWeek = remember(calendar) { calendar.get(Calendar.DAY_OF_WEEK) }
+
+    val startOffset = remember(firstDayOfWeek) {
+        when (firstDayOfWeek) {
+            Calendar.MONDAY -> 0
+            Calendar.TUESDAY -> 1
+            Calendar.WEDNESDAY -> 2
+            Calendar.THURSDAY -> 3
+            Calendar.FRIDAY -> 4
+            Calendar.SATURDAY -> 5
+            Calendar.SUNDAY -> 6
+            else -> 0
+        }
+    }
+
+    val calendarCells = remember(startOffset, totalDays) {
+        buildList {
+            repeat(startOffset) { add(null) }
+            for (day in 1..totalDays) { add(day) }
+        }
     }
 
     Column(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "<",
+                color = CeaColors.Green,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                modifier = Modifier
+                    .clickable { currentMonthOffset-- }
+                    .padding(8.dp)
+            )
+            Text(
+                text = "$monthName $year",
+                color = CeaColors.Text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = ">",
+                color = CeaColors.Green,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                modifier = Modifier
+                    .clickable { currentMonthOffset++ }
+                    .padding(8.dp)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("S", "T", "Q", "Q", "S", "S", "D").forEach {
-                Text(it, color = CeaColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
+                Text(
+                    text = it,
+                    color = CeaColors.Muted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(36.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
         Spacer(Modifier.height(6.dp))
-        days.chunked(7).forEach { week ->
+        calendarCells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                week.forEach { (day, state) ->
-                    CalendarCell(day, state)
+                week.forEach { day ->
+                    if (day != null) {
+                        val state = when (day) {
+                            4, 10, 17, 20 -> DayState.Completed
+                            8 -> DayState.Missed
+                            12, 24 -> DayState.Scheduled
+                            else -> DayState.Empty
+                        }
+                        CalendarCell(day, state)
+                    } else {
+                        Spacer(Modifier.size(36.dp))
+                    }
+                }
+                if (week.size < 7) {
+                    repeat(7 - week.size) {
+                        Spacer(Modifier.size(36.dp))
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -1039,6 +1123,8 @@ private fun ProfileScreen(
             MetricCard(profile.objective, "Mais treinado", Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
+        ProfileCalendarCard()
+        Spacer(Modifier.height(18.dp))
         CeaCard {
             SectionTitle("Hidratacao")
             Text("$waterMl ml de 2500 ml", color = CeaColors.Muted, fontSize = 12.sp)
@@ -1060,6 +1146,126 @@ private fun ProfileScreen(
         WorkoutRow("Cardio HIIT", "Ontem - 28 min", "OK", onProgress)
         Spacer(Modifier.height(8.dp))
         WorkoutRow("Push hipertrofia A", "Segunda - 61 min", "OK", onProgress)
+    }
+}
+
+@Composable
+private fun ProfileCalendarCard() {
+    var currentMonthOffset by remember { mutableIntStateOf(0) }
+
+    val calendar = remember(currentMonthOffset) {
+        Calendar.getInstance().apply {
+            set(Calendar.YEAR, 2026)
+            set(Calendar.MONTH, Calendar.JUNE)
+            add(Calendar.MONTH, currentMonthOffset)
+            set(Calendar.DAY_OF_MONTH, 1)
+        }
+    }
+
+    val monthName = remember(calendar) {
+        calendar.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale("pt", "BR"))
+            ?.replaceFirstChar { it.uppercase() } ?: ""
+    }
+    val year = remember(calendar) { calendar.get(Calendar.YEAR) }
+    val totalDays = remember(calendar) { calendar.getActualMaximum(Calendar.DAY_OF_MONTH) }
+    val firstDayOfWeek = remember(calendar) { calendar.get(Calendar.DAY_OF_WEEK) }
+
+    val startOffset = remember(firstDayOfWeek) {
+        when (firstDayOfWeek) {
+            Calendar.MONDAY -> 0
+            Calendar.TUESDAY -> 1
+            Calendar.WEDNESDAY -> 2
+            Calendar.THURSDAY -> 3
+            Calendar.FRIDAY -> 4
+            Calendar.SATURDAY -> 5
+            Calendar.SUNDAY -> 6
+            else -> 0
+        }
+    }
+
+    val calendarCells = remember(startOffset, totalDays) {
+        buildList {
+            repeat(startOffset) { add(null) }
+            for (day in 1..totalDays) { add(day) }
+        }
+    }
+
+    CeaCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                SectionTitle("Frequencia de treinos")
+                Spacer(Modifier.height(2.dp))
+                Text("$monthName $year", color = CeaColors.Muted, fontSize = 11.sp)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "<",
+                    color = CeaColors.Green,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier
+                        .clickable { currentMonthOffset-- }
+                        .padding(8.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = ">",
+                    color = CeaColors.Green,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier
+                        .clickable { currentMonthOffset++ }
+                        .padding(8.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("S", "T", "Q", "Q", "S", "S", "D").forEach {
+                Text(
+                    text = it,
+                    color = CeaColors.Muted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(36.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        calendarCells.chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                week.forEach { day ->
+                    if (day != null) {
+                        val state = when (day) {
+                            4, 10, 17, 20 -> DayState.Completed
+                            8 -> DayState.Missed
+                            12, 24 -> DayState.Scheduled
+                            else -> DayState.Empty
+                        }
+                        CalendarCell(day, state)
+                    } else {
+                        Spacer(Modifier.size(36.dp))
+                    }
+                }
+                if (week.size < 7) {
+                    repeat(7 - week.size) {
+                        Spacer(Modifier.size(36.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatusPill("Concluido", CeaColors.Green)
+            StatusPill("Agendado", CeaColors.Blue)
+            StatusPill("Perdido", CeaColors.Red)
+        }
     }
 }
 

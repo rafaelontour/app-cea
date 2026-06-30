@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -136,7 +137,8 @@ private enum class Screen(val tab: String, val label: String) {
     Progress("progress", "Prog"),
     Exercises("exercises", "Exer"),
     Calendar("workouts", "Calendario"),
-    Profile("profile", "Perfil")
+    Profile("profile", "Perfil"),
+    ActiveWorkout("workouts", "Ativo")
 }
 
 private object CeaColors {
@@ -183,6 +185,7 @@ private fun CeaApp(activity: MainActivity) {
     var refresh by remember { mutableIntStateOf(0) }
     val selectedExercises = remember { mutableStateListOf<Exercise>() }
     var editingWorkoutId by remember { mutableStateOf<Long?>(null) }
+    var activeWorkout by remember { mutableStateOf<Workout?>(null) }
 
     LaunchedEffect(screen, refresh) {
         profile = database.getProfile()
@@ -213,6 +216,7 @@ private fun CeaApp(activity: MainActivity) {
             Screen.Exercises -> "Exercicios"
             Screen.Calendar -> "Calendario"
             Screen.Profile -> "Perfil"
+            Screen.ActiveWorkout -> "Treino Ativo"
             Screen.ProfileSetup -> ""
         },
         subtitle = when (screen) {
@@ -220,6 +224,7 @@ private fun CeaApp(activity: MainActivity) {
             Screen.CreateWorkout -> "Monte um plano personalizado"
             Screen.Progress -> "Sua evolucao em numeros"
             Screen.Calendar -> "Junho 2026"
+            Screen.ActiveWorkout -> "Mantenha o foco!"
             else -> ""
         },
         onNavigate = { screen = it }
@@ -261,7 +266,10 @@ private fun CeaApp(activity: MainActivity) {
                     selectedExercises.clear()
                     screen = Screen.CreateWorkout
                 },
-                onStart = { screen = Screen.Exercises },
+                onStart = { workout ->
+                    activeWorkout = workout
+                    screen = Screen.ActiveWorkout
+                },
                 onEdit = { workout ->
                     editingWorkoutId = workout.id
                     selectedExercises.clear()
@@ -301,6 +309,23 @@ private fun CeaApp(activity: MainActivity) {
                 }
             )
             Screen.Exercises -> ExercisesScreen(modifier, database.listExercises(), selectedExercises)
+            Screen.ActiveWorkout -> {
+                val workout = activeWorkout
+                if (workout != null) {
+                    ActiveWorkoutScreen(
+                        modifier = modifier,
+                        workout = workout,
+                        database = database,
+                        onFinished = {
+                            screen = Screen.MyWorkouts
+                            activeWorkout = null
+                            refresh++
+                        }
+                    )
+                } else {
+                    screen = Screen.MyWorkouts
+                }
+            }
             Screen.Calendar -> CalendarScreen(modifier, onStart = { screen = Screen.Exercises })
             Screen.Profile -> ProfileScreen(
                 modifier = modifier,
@@ -638,7 +663,7 @@ private fun MyWorkoutsScreen(
     modifier: Modifier,
     workouts: List<Workout>,
     onNew: () -> Unit,
-    onStart: () -> Unit,
+    onStart: (Workout) -> Unit,
     onEdit: (Workout) -> Unit,
     onDuplicate: (Workout) -> Unit,
     onDelete: (Workout) -> Unit
@@ -654,7 +679,7 @@ private fun MyWorkoutsScreen(
                 title = workout.title,
                 subtitle = "${workout.objective} - ${workout.duration}$origin",
                 action = "Iniciar",
-                onStart = onStart,
+                onStart = { onStart(workout) },
                 onEdit = { onEdit(workout) },
                 onDuplicate = { onDuplicate(workout) },
                 onDelete = { onDelete(workout) }
@@ -762,8 +787,9 @@ private fun ProgressScreen(
     val bmi = bmiService.calculate(profile.weightKg, profile.heightCm)
 
     Column(modifier) {
+        val completedCount = remember(profile) { database.getCompletedWorkoutsCount() }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("18", "Concluidos", Modifier.weight(1f))
+            MetricCard((18 + completedCount).toString(), "Concluidos", Modifier.weight(1f))
             MetricCard("24", "Dias ativos", Modifier.weight(1f))
             MetricCard("7", "Sequencia", Modifier.weight(1f))
         }
@@ -1445,6 +1471,245 @@ private fun ProfileCalendarCard() {
             StatusPill("Concluido", CeaColors.Green)
             StatusPill("Agendado", CeaColors.Blue)
             StatusPill("Perdido", CeaColors.Red)
+        }
+    }
+}
+
+@Composable
+private fun ActiveWorkoutScreen(
+    modifier: Modifier,
+    workout: Workout,
+    database: CeaDatabaseHelper,
+    onFinished: () -> Unit
+) {
+    var currentExerciseIndex by remember { mutableIntStateOf(0) }
+    var isResting by remember { mutableStateOf(false) }
+    var restTimeInput by remember { mutableStateOf("15") }
+    var customRestSeconds by remember { mutableIntStateOf(15) }
+
+    val exercises = workout.exercises
+    val currentExercise = exercises.getOrNull(currentExerciseIndex) ?: ""
+
+    val exercisesCatalog = remember { database.listExercises() }
+    val currentExerciseObj = remember(currentExercise, exercisesCatalog) {
+        exercisesCatalog.find { it.name.equals(currentExercise, ignoreCase = true) }
+    }
+
+    val defaultWorkSeconds = remember(currentExerciseObj) {
+        when (currentExerciseObj?.level) {
+            "Iniciante" -> 20
+            "Intermediario" -> 25
+            "Avancado" -> 30
+            else -> 30
+        }
+    }
+
+    var timeLeft by remember(currentExerciseIndex, isResting, defaultWorkSeconds) {
+        mutableIntStateOf(if (isResting) customRestSeconds else defaultWorkSeconds)
+    }
+    var isTimerRunning by remember { mutableStateOf(true) }
+
+    LaunchedEffect(isTimerRunning, timeLeft) {
+        if (isTimerRunning && timeLeft > 0) {
+            kotlinx.coroutines.delay(1000L)
+            timeLeft--
+        } else if (timeLeft == 0) {
+            if (!isResting && currentExerciseIndex < exercises.size - 1) {
+                isResting = true
+            } else if (isResting) {
+                isResting = false
+                currentExerciseIndex++
+            } else {
+                database.logWorkoutCompletion(workout.id)
+                onFinished()
+            }
+        }
+    }
+
+    Column(modifier) {
+        Text(workout.title, color = CeaColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text("${exercises.size} Exercícios em sequência", color = CeaColors.Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(16.dp))
+
+        CeaCard {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (isResting) "DESCANSO" else "EXECUTANDO",
+                    color = if (isResting) CeaColors.Blue else CeaColors.Green,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+
+                if (isResting) {
+                    val nextExerciseName = exercises.getOrNull(currentExerciseIndex + 1) ?: "Fim"
+                    Text(
+                        text = "Próximo: $nextExerciseName",
+                        color = CeaColors.Text,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else {
+                    Text(
+                        text = currentExercise,
+                        color = CeaColors.Text,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    if (currentExerciseObj != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatusPill(currentExerciseObj.level, CeaColors.Green)
+                            StatusPill(currentExerciseObj.muscleGroup, CeaColors.Blue)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Instruções:",
+                            color = CeaColors.Text,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        currentExerciseObj.instructions.split("\n").filter { it.isNotBlank() }.forEachIndexed { idx, step ->
+                            Text(
+                                text = "${idx + 1}. $step",
+                                color = CeaColors.Muted,
+                                fontSize = 11.sp,
+                                modifier = Modifier.align(Alignment.Start),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "${timeLeft}s",
+                    color = CeaColors.Text,
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = { isTimerRunning = !isTimerRunning },
+                        colors = ButtonDefaults.buttonColors(containerColor = CeaColors.CardAlt),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (isTimerRunning) "Pausar" else "Retomar", color = CeaColors.Text)
+                    }
+                    if (!isResting) {
+                        Button(
+                            onClick = { timeLeft += 5 },
+                            colors = ButtonDefaults.buttonColors(containerColor = CeaColors.CardAlt),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("+5s", color = CeaColors.Green, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            if (!isResting && currentExerciseIndex < exercises.size - 1) {
+                                isResting = true
+                            } else {
+                                isResting = false
+                                if (currentExerciseIndex < exercises.size - 1) {
+                                    currentExerciseIndex++
+                                } else {
+                                    database.logWorkoutCompletion(workout.id)
+                                    onFinished()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CeaColors.CardAlt),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Pular", color = CeaColors.Text)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        CeaCard {
+            SectionTitle("Configurar tempo de descanso")
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CeaInput(
+                    label = "Tempo de descanso (segundos)",
+                    value = restTimeInput,
+                    modifier = Modifier.weight(1f),
+                    onValueChange = {
+                        restTimeInput = it
+                        it.toIntOrNull()?.let { s ->
+                            if (s > 0) {
+                                customRestSeconds = s
+                            }
+                        }
+                    }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SectionTitle("Exercícios do Treino")
+        Spacer(Modifier.height(8.dp))
+        exercises.forEachIndexed { index, name ->
+            val isCurrent = index == currentExerciseIndex && !isResting
+            val isCompleted = index < currentExerciseIndex
+
+            CeaCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .border(
+                        width = if (isCurrent) 1.5.dp else 0.dp,
+                        color = if (isCurrent) CeaColors.Green else Color.Transparent,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "${index + 1}",
+                            color = if (isCompleted) CeaColors.Green else CeaColors.Muted,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = name,
+                            color = if (isCurrent) CeaColors.Green else if (isCompleted) CeaColors.Muted else CeaColors.Text,
+                            fontSize = 14.sp,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                    if (isCompleted) {
+                        Text("✓ Concluído", color = CeaColors.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    } else if (isCurrent) {
+                        Text("Executando...", color = CeaColors.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    } else {
+                        Text("Aguardando", color = CeaColors.Muted, fontSize = 11.sp)
+                    }
+                }
+            }
         }
     }
 }

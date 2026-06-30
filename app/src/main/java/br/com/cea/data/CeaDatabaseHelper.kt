@@ -532,8 +532,31 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         }
     }
 
+    fun logWorkoutCompletion(workoutId: Long): Long {
+        return writableDatabase.insert(
+            "workout_history",
+            null,
+            ContentValues().apply {
+                put("user_id", 1)
+                put("workout_id", workoutId)
+                put("completed_at", System.currentTimeMillis())
+                put("duration_seconds", 30 * 60)
+                put("notes", "Treino concluído via temporizador")
+            }
+        )
+    }
+
+    fun getCompletedWorkoutsCount(): Int {
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM workout_history", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getInt(0)
+            }
+        }
+        return 0
+    }
+
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 5
+        private const val DB_VERSION = 6
     }
 }

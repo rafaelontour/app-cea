@@ -7,8 +7,9 @@ import android.database.sqlite.SQLiteOpenHelper
 import br.com.cea.model.Exercise
 import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
+import org.json.JSONArray
 
-class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
+class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -65,7 +66,9 @@ class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, n
                 muscle_group TEXT,
                 level TEXT,
                 instructions TEXT,
-                image_uri TEXT
+                image_uri TEXT,
+                primary_muscles TEXT,
+                secondary_muscles TEXT
             )
             """.trimIndent()
         )
@@ -201,7 +204,9 @@ class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, n
                             muscleGroup = cursor.getString(cursor.getColumnIndexOrThrow("muscle_group")),
                             level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
                             instructions = cursor.getString(cursor.getColumnIndexOrThrow("instructions")),
-                            imageUri = cursor.getString(cursor.getColumnIndexOrThrow("image_uri"))
+                            imageUri = cursor.getString(cursor.getColumnIndexOrThrow("image_uri")),
+                            primaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("primary_muscles")),
+                            secondaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("secondary_muscles"))
                         )
                     )
                 }
@@ -233,14 +238,80 @@ class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, n
     }
 
     private fun seed(db: SQLiteDatabase) {
-        insertExercise(db, "Supino reto", "Peito", "Intermediario", "Controle a descida e mantenha escapulas firmes.")
-        insertExercise(db, "Crucifixo inclinado", "Peito", "Intermediario", "Abra os cotovelos com amplitude segura.")
-        insertExercise(db, "Flexao de braco", "Peito", "Iniciante", "Mantenha tronco alinhado durante todo o movimento.")
-        insertExercise(db, "Puxada aberta", "Costas", "Intermediario", "Puxe com dorsais e evite elevar ombros.")
-        insertExercise(db, "Remada australiana", "Costas", "Iniciante", "Mantenha quadril firme e peito aberto.")
-        insertExercise(db, "Agachamento livre", "Pernas", "Iniciante", "Desca mantendo joelhos alinhados aos pes.")
-        insertExercise(db, "Afundo alternado", "Pernas", "Intermediario", "Controle a descida e suba sem impulso.")
-        insertExercise(db, "Elevacao lateral", "Ombros", "Iniciante", "Suba ate a linha dos ombros sem impulso.")
+        try {
+            val jsonString = context.assets.open("exercises.json").bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(jsonString)
+            for (i in 0 until jsonArray.length()) {
+                val jsonObject = jsonArray.getJSONObject(i)
+                val name = jsonObject.optString("name", "")
+                val levelRaw = jsonObject.optString("level", "iniciante")
+                val level = when (levelRaw.lowercase()) {
+                    "iniciante" -> "Iniciante"
+                    "intermediario" -> "Intermediario"
+                    "avancado" -> "Avancado"
+                    else -> "Iniciante"
+                }
+
+                val primaryMuscles = jsonObject.optJSONArray("primaryMuscles")
+                val primaryMuscle = if (primaryMuscles != null && primaryMuscles.length() > 0) {
+                    primaryMuscles.optString(0, "peito")
+                } else {
+                    "peito"
+                }
+                val muscleGroup = when (primaryMuscle.lowercase()) {
+                    "peito" -> "Peito"
+                    "dorsais", "meio-das-costas", "inferior-das-costas", "trapezio" -> "Costas"
+                    "ombros" -> "Ombros"
+                    "quadriceps", "isquiotibiais", "panturrilhas", "gluteos", "adutores", "abdutores" -> "Pernas"
+                    "biceps", "triceps", "antebracos" -> "Braços"
+                    "abdominais" -> "Abdominais"
+                    else -> "Outros"
+                }
+
+                val primaryMusclesStr = buildList {
+                    if (primaryMuscles != null) {
+                        for (idx in 0 until primaryMuscles.length()) {
+                            add(primaryMuscles.optString(idx))
+                        }
+                    }
+                }.joinToString(",")
+
+                val secondaryMusclesArray = jsonObject.optJSONArray("secondaryMuscles")
+                val secondaryMusclesStr = buildList {
+                    if (secondaryMusclesArray != null) {
+                        for (idx in 0 until secondaryMusclesArray.length()) {
+                            add(secondaryMusclesArray.optString(idx))
+                        }
+                    }
+                }.joinToString(",")
+
+                val instructionsArray = jsonObject.optJSONArray("instructions")
+                val instructionsBuilder = StringBuilder()
+                if (instructionsArray != null) {
+                    for (j in 0 until instructionsArray.length()) {
+                        instructionsBuilder.append(instructionsArray.optString(j))
+                        if (j < instructionsArray.length() - 1) {
+                            instructionsBuilder.append("\n")
+                        }
+                    }
+                }
+                val instructions = instructionsBuilder.toString()
+                val imageUri = jsonObject.optJSONArray("images")?.optString(0) ?: ""
+
+                insertExercise(db, name, muscleGroup, level, instructions, imageUri, primaryMusclesStr, secondaryMusclesStr)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback manual seeding
+            insertExercise(db, "Supino reto", "Peito", "Intermediario", "Controle a descida e mantenha escapulas firmes.", "", "peito", "")
+            insertExercise(db, "Crucifixo inclinado", "Peito", "Intermediario", "Abra os cotovelos com amplitude segura.", "", "peito", "")
+            insertExercise(db, "Flexao de braco", "Peito", "Iniciante", "Mantenha tronco alinhado durante todo o movimento.", "", "peito", "")
+            insertExercise(db, "Puxada aberta", "Costas", "Intermediario", "Puxe com dorsais e evite elevar ombros.", "", "dorsais", "")
+            insertExercise(db, "Remada australiana", "Costas", "Iniciante", "Mantenha quadril firme e peito aberto.", "", "meio-das-costas", "")
+            insertExercise(db, "Agachamento livre", "Pernas", "Iniciante", "Desca mantendo joelhos alinhados aos pes.", "", "quadriceps", "")
+            insertExercise(db, "Afundo alternado", "Pernas", "Intermediario", "Controle a descida e suba sem impulso.", "", "quadriceps", "")
+            insertExercise(db, "Elevacao lateral", "Ombros", "Iniciante", "Suba ate a linha dos ombros sem impulso.", "", "ombros", "")
+        }
 
         insertWorkout(db, "Push hipertrofia A", "Hipertrofia", "Intermediario", "60 min", true, false, null)
         insertWorkout(db, "Lower forca", "Forca", "Avancado", "50 min", true, false, null)
@@ -248,7 +319,7 @@ class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, n
         insertWorkout(db, "Mobilidade", "Mobilidade", "Iniciante", "20 min", true, false, null)
     }
 
-    private fun insertExercise(db: SQLiteDatabase, name: String, muscle: String, level: String, instructions: String) {
+    private fun insertExercise(db: SQLiteDatabase, name: String, muscle: String, level: String, instructions: String, imageUri: String, primaryMuscles: String, secondaryMuscles: String) {
         db.insert(
             "exercise_catalog",
             null,
@@ -257,7 +328,9 @@ class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, n
                 put("muscle_group", muscle)
                 put("level", level)
                 put("instructions", instructions)
-                put("image_uri", "")
+                put("image_uri", imageUri)
+                put("primary_muscles", primaryMuscles)
+                put("secondary_muscles", secondaryMuscles)
             }
         )
     }
@@ -290,6 +363,6 @@ class CeaDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DB_NAME, n
 
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 3
     }
 }

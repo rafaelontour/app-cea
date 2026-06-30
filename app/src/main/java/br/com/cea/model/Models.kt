@@ -20,7 +20,9 @@ data class Exercise(
     val muscleGroup: String,
     val level: String,
     val instructions: String,
-    val imageUri: String = ""
+    val imageUri: String = "",
+    val primaryMuscles: String = "",
+    val secondaryMuscles: String = ""
 )
 
 data class Workout(

@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.cea.data.CeaDatabaseHelper
 import br.com.cea.model.DayState
 import br.com.cea.model.UserProfile
 import java.util.Calendar
@@ -24,10 +25,14 @@ fun ProfileScreen(
     modifier: Modifier,
     profile: UserProfile,
     waterMl: Int,
+    database: CeaDatabaseHelper,
     onEdit: () -> Unit,
     onWater: () -> Unit,
     onProgress: () -> Unit
 ) {
+    val completedCount = remember(profile) { database.getCompletedWorkoutsCount() }
+    val workoutHistory = remember(completedCount) { database.getWorkoutHistoryList() }
+
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar()
@@ -40,7 +45,7 @@ fun ProfileScreen(
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("18", "Concluidos", Modifier.weight(1f))
+            MetricCard((18 + completedCount).toString(), "Concluidos", Modifier.weight(1f))
             MetricCard("24", "Dias ativos", Modifier.weight(1f))
             MetricCard("12h40", "Tempo total", Modifier.weight(1f))
         }
@@ -68,11 +73,32 @@ fun ProfileScreen(
         Spacer(Modifier.height(18.dp))
         SectionTitle("Historico recente")
         Spacer(Modifier.height(8.dp))
-        WorkoutRow("Upper body forca", "Hoje - 42 min", "OK", onProgress)
-        Spacer(Modifier.height(8.dp))
-        WorkoutRow("Cardio HIIT", "Ontem - 28 min", "OK", onProgress)
-        Spacer(Modifier.height(8.dp))
-        WorkoutRow("Push hipertrofia A", "Segunda - 61 min", "OK", onProgress)
+        if (workoutHistory.isEmpty()) {
+            Text(
+                text = "Nenhum treino concluído recentemente.",
+                color = CeaColors.Muted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            workoutHistory.take(5).forEach { (title, timestamp) ->
+                val timeLabel = remember(timestamp) {
+                    val diff = System.currentTimeMillis() - timestamp
+                    val days = (diff / (1000 * 60 * 60 * 24)).toInt()
+                    when {
+                        days == 0 -> "Hoje"
+                        days == 1 -> "Ontem"
+                        days < 7 -> "$days dias atrás"
+                        else -> {
+                            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                            sdf.format(java.util.Date(timestamp))
+                        }
+                    }
+                }
+                WorkoutRow(title, "$timeLabel - 30 min", "OK", onProgress)
+                Spacer(Modifier.height(8.dp))
+            }
+        }
     }
 }
 

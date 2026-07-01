@@ -555,6 +555,24 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         return 0
     }
 
+    fun getWorkoutHistoryList(): List<Pair<String, Long>> {
+        val list = mutableListOf<Pair<String, Long>>()
+        val sql = """
+            SELECT w.title, h.completed_at 
+            FROM workout_history h
+            LEFT JOIN workouts w ON h.workout_id = w.id
+            ORDER BY h.completed_at DESC
+        """.trimIndent()
+        readableDatabase.rawQuery(sql, null).use { cursor ->
+            while (cursor.moveToNext()) {
+                val title = cursor.getString(0) ?: "Treino Livre"
+                val completedAt = cursor.getLong(1)
+                list.add(Pair(title, completedAt))
+            }
+        }
+        return list
+    }
+
     companion object {
         private const val DB_NAME = "cea.db"
         private const val DB_VERSION = 6

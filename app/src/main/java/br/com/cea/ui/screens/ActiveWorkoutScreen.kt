@@ -33,8 +33,11 @@ fun ActiveWorkoutScreen(
     val currentExercise = exercises.getOrNull(currentExerciseIndex) ?: ""
 
     val exercisesCatalog = remember { database.listExercises() }
-    val currentExerciseObj = remember(currentExercise, exercisesCatalog) {
-        exercisesCatalog.find { it.name.equals(currentExercise, ignoreCase = true) }
+    val cleanExerciseName = remember(currentExercise) {
+        currentExercise.split("-").first().trim()
+    }
+    val currentExerciseObj = remember(cleanExerciseName, exercisesCatalog) {
+        exercisesCatalog.find { it.name.equals(cleanExerciseName, ignoreCase = true) }
     }
 
     val defaultWorkSeconds = remember(currentExerciseObj) {

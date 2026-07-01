@@ -32,7 +32,12 @@ fun ProgressScreen(
     var weightInput by remember { mutableStateOf("") }
     var refreshHistory by remember { mutableIntStateOf(0) }
     val history = remember(refreshHistory) { database.getWeightHistory() }
-    val bmi = bmiService.calculate(profile.weightKg, profile.heightCm)
+    val currentWeight = remember(history, profile) {
+        history.lastOrNull()?.weightKg ?: profile.weightKg
+    }
+    val bmi = remember(currentWeight, profile.heightCm) {
+        bmiService.calculate(currentWeight, profile.heightCm)
+    }
 
     Column(modifier) {
         val completedCount = remember(profile) { database.getCompletedWorkoutsCount() }

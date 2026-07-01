@@ -111,6 +111,7 @@ private fun CeaApp(activity: MainActivity) {
             profile = profile,
             onSave = { updated ->
                 database.saveProfile(updated)
+                database.logWeight(updated.weightKg, updated.heightCm)
                 preferences.edit().putBoolean("profile_done", true).apply()
                 analytics.track(context, "profile_created")
                 profile = updated
@@ -246,6 +247,7 @@ private fun CeaApp(activity: MainActivity) {
                 modifier = modifier,
                 profile = profile,
                 waterMl = database.getTodayWaterMl(),
+                database = database,
                 onEdit = { screen = Screen.ProfileSetup },
                 onWater = {
                     database.logWater(250)

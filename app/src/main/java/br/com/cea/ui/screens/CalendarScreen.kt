@@ -10,12 +10,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.cea.data.CeaDatabaseHelper
 import br.com.cea.model.DayState
 import java.util.Calendar
 import java.util.Locale
 
 @Composable
-fun CalendarScreen(modifier: Modifier, onStart: () -> Unit) {
+fun CalendarScreen(
+    modifier: Modifier,
+    database: CeaDatabaseHelper,
+    onStart: () -> Unit
+) {
     var currentMonthOffset by remember { mutableIntStateOf(0) }
 
     val calendar = remember(currentMonthOffset) {
@@ -53,6 +58,10 @@ fun CalendarScreen(modifier: Modifier, onStart: () -> Unit) {
             repeat(startOffset) { add(null) }
             for (day in 1..totalDays) { add(day) }
         }
+    }
+
+    val completedDays = remember(database, currentMonthOffset, year) {
+        database.getCompletedDaysInMonth(year, calendar.get(Calendar.MONTH))
     }
 
     Column(modifier) {
@@ -104,10 +113,10 @@ fun CalendarScreen(modifier: Modifier, onStart: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 week.forEach { day ->
                     if (day != null) {
-                        val state = when (day) {
-                            4, 10, 17, 20 -> DayState.Completed
-                            8 -> DayState.Missed
-                            12, 24 -> DayState.Scheduled
+                        val state = when {
+                            day in completedDays -> DayState.Completed
+                            day == 8 -> DayState.Missed
+                            day in listOf(12, 24) -> DayState.Scheduled
                             else -> DayState.Empty
                         }
                         CalendarCell(day, state)
@@ -129,7 +138,25 @@ fun CalendarScreen(modifier: Modifier, onStart: () -> Unit) {
             StatusPill("Agendado", CeaColors.Blue)
             StatusPill("Perdido", CeaColors.Red)
         }
-        Spacer(Modifier.height(16.dp))
-        WorkoutRow("Hoje", "Lower forca - 18:30 - Pernas - 50 min", "Iniciar", onStart)
+        val workouts = remember(database) { database.listWorkouts(publicOnly = false) }
+        val activePlanned = workouts.firstOrNull()
+        if (activePlanned != null) {
+            Spacer(Modifier.height(16.dp))
+            SectionTitle("Treino Agendado")
+            Spacer(Modifier.height(6.dp))
+            WorkoutRow(
+                title = activePlanned.title,
+                subtitle = "${activePlanned.objective} - ${activePlanned.duration}",
+                action = "Iniciar",
+                onStart = onStart
+            )
+        } else {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "Nenhum treino agendado ou criado hoje.",
+                color = CeaColors.Muted,
+                fontSize = 11.sp
+            )
+        }
     }
 }

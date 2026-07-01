@@ -224,7 +224,18 @@ private fun CeaApp(activity: MainActivity) {
                     refresh++
                 }
             )
-            Screen.Exercises -> ExercisesScreen(modifier, database.listExercises(), selectedExercises)
+            Screen.Exercises -> ExercisesScreen(
+                modifier = modifier,
+                exercises = database.listExercises(),
+                selectedExercises = selectedExercises,
+                onBack = {
+                    if (editingWorkoutId != null || selectedExercises.isNotEmpty()) {
+                        screen = Screen.CreateWorkout
+                    } else {
+                        screen = Screen.Home
+                    }
+                }
+            )
             Screen.ActiveWorkout -> {
                 val workout = activeWorkout
                 if (workout != null) {
@@ -242,7 +253,22 @@ private fun CeaApp(activity: MainActivity) {
                     screen = Screen.MyWorkouts
                 }
             }
-            Screen.Calendar -> CalendarScreen(modifier, onStart = { screen = Screen.Exercises })
+            Screen.Calendar -> {
+                val workouts = database.listWorkouts(publicOnly = false)
+                val firstWorkout = workouts.firstOrNull()
+                CalendarScreen(
+                    modifier = modifier,
+                    database = database,
+                    onStart = {
+                        if (firstWorkout != null) {
+                            activeWorkout = firstWorkout
+                            screen = Screen.ActiveWorkout
+                        } else {
+                            screen = Screen.MyWorkouts
+                        }
+                    }
+                )
+            }
             Screen.Profile -> ProfileScreen(
                 modifier = modifier,
                 profile = profile,

@@ -22,7 +22,8 @@ import br.com.cea.model.Exercise
 fun ExercisesScreen(
     modifier: Modifier,
     exercises: List<Exercise>,
-    selectedExercises: MutableList<Exercise>
+    selectedExercises: MutableList<Exercise>,
+    onBack: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
     var muscle by remember { mutableStateOf("") }
@@ -43,6 +44,18 @@ fun ExercisesScreen(
     val displayList = filtered.drop(pageStart).take(pageSize)
 
     Column(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Catálogo", color = CeaColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            if (selectedExercises.isNotEmpty()) {
+                SmallAction("Confirmar (${selectedExercises.size})", onClick = onBack)
+            } else {
+                GhostAction("Voltar", onClick = onBack)
+            }
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically

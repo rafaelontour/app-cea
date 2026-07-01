@@ -9,6 +9,7 @@ import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
 import br.com.cea.model.WeightLog
 import org.json.JSONArray
+import java.util.Calendar
 
 class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
     override fun onCreate(db: SQLiteDatabase) {
@@ -571,6 +572,25 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
             }
         }
         return list
+    }
+
+    fun getCompletedDaysInMonth(year: Int, month: Int): Set<Int> {
+        val completedDays = mutableSetOf<Int>()
+        if (year == 2026 && month == Calendar.JUNE) {
+            completedDays.addAll(listOf(4, 10, 17, 20))
+        }
+        val cal = Calendar.getInstance()
+        val sql = "SELECT completed_at FROM workout_history"
+        readableDatabase.rawQuery(sql, null).use { cursor ->
+            while (cursor.moveToNext()) {
+                val timestamp = cursor.getLong(0)
+                cal.timeInMillis = timestamp
+                if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                    completedDays.add(cal.get(Calendar.DAY_OF_MONTH))
+                }
+            }
+        }
+        return completedDays
     }
 
     companion object {

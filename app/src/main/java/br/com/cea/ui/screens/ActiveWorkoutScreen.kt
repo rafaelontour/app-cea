@@ -59,14 +59,16 @@ fun ActiveWorkoutScreen(
             kotlinx.coroutines.delay(1000L)
             timeLeft--
         } else if (timeLeft == 0) {
-            if (!isResting && currentExerciseIndex < exercises.size - 1) {
+            if (!isResting) {
                 isResting = true
-            } else if (isResting) {
-                isResting = false
-                currentExerciseIndex++
             } else {
-                database.logWorkoutCompletion(workout.id)
-                onFinished()
+                isResting = false
+                if (currentExerciseIndex < exercises.size - 1) {
+                    currentExerciseIndex++
+                } else {
+                    database.logWorkoutCompletion(workout.id)
+                    onFinished()
+                }
             }
         }
     }
@@ -99,6 +101,35 @@ fun ActiveWorkoutScreen(
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
+                    val nextExerciseObj = remember(nextExerciseName, exercisesCatalog) {
+                        val clean = nextExerciseName.split("-").first().trim()
+                        exercisesCatalog.find { it.name.equals(clean, ignoreCase = true) }
+                    }
+                    if (nextExerciseObj != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatusPill(nextExerciseObj.level, CeaColors.Green)
+                            StatusPill(nextExerciseObj.muscleGroup, CeaColors.Blue)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Descrição / Instruções do próximo:",
+                            color = CeaColors.Text,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        nextExerciseObj.instructions.split("\n").filter { it.isNotBlank() }.forEachIndexed { idx, step ->
+                            Text(
+                                text = "${idx + 1}. $step",
+                                color = CeaColors.Muted,
+                                fontSize = 11.sp,
+                                modifier = Modifier.align(Alignment.Start),
+                                textAlign = TextAlign.Start
+                            )
+                        }
+                    }
                 } else {
                     Text(
                         text = currentExercise,
@@ -115,7 +146,7 @@ fun ActiveWorkoutScreen(
                         }
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            text = "Instruções:",
+                            text = "Descrição / Instruções:",
                             color = CeaColors.Text,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -161,7 +192,7 @@ fun ActiveWorkoutScreen(
                     }
                     Button(
                         onClick = {
-                            if (!isResting && currentExerciseIndex < exercises.size - 1) {
+                            if (!isResting) {
                                 isResting = true
                             } else {
                                 isResting = false

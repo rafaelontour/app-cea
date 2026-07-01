@@ -55,7 +55,7 @@ fun ProfileScreen(
             MetricCard(profile.objective, "Mais treinado", Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
-        ProfileCalendarCard()
+        ProfileCalendarCard(database)
         Spacer(Modifier.height(18.dp))
         CeaCard {
             SectionTitle("Hidratacao")
@@ -103,7 +103,7 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileCalendarCard() {
+fun ProfileCalendarCard(database: CeaDatabaseHelper) {
     var currentMonthOffset by remember { mutableIntStateOf(0) }
 
     val calendar = remember(currentMonthOffset) {
@@ -141,6 +141,10 @@ fun ProfileCalendarCard() {
             repeat(startOffset) { add(null) }
             for (day in 1..totalDays) { add(day) }
         }
+    }
+
+    val completedDays = remember(database, currentMonthOffset, year) {
+        database.getCompletedDaysInMonth(year, calendar.get(Calendar.MONTH))
     }
 
     CeaCard {
@@ -194,10 +198,10 @@ fun ProfileCalendarCard() {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 week.forEach { day ->
                     if (day != null) {
-                        val state = when (day) {
-                            4, 10, 17, 20 -> DayState.Completed
-                            8 -> DayState.Missed
-                            12, 24 -> DayState.Scheduled
+                        val state = when {
+                            day in completedDays -> DayState.Completed
+                            day == 8 -> DayState.Missed
+                            day in listOf(12, 24) -> DayState.Scheduled
                             else -> DayState.Empty
                         }
                         CalendarCell(day, state)

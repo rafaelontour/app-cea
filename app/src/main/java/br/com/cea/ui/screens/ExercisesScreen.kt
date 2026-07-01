@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import br.com.cea.model.Exercise
 
@@ -28,14 +29,18 @@ fun ExercisesScreen(
     var query by remember { mutableStateOf("") }
     var muscle by remember { mutableStateOf("") }
     var levelFilter by remember { mutableStateOf("") }
+    var equipmentFilter by remember { mutableStateOf("") }
     var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    var currentPage by remember(muscle, levelFilter, query) { mutableIntStateOf(0) }
+    var currentPage by remember(muscle, levelFilter, equipmentFilter, query) { mutableIntStateOf(0) }
 
     val filtered = exercises.filter {
         (muscle.isBlank() || it.muscleGroup == muscle) &&
         (levelFilter.isBlank() || it.level == levelFilter) &&
-        (query.isBlank() || it.name.contains(query, ignoreCase = true))
+        (query.isBlank() || it.name.contains(query, ignoreCase = true)) &&
+        (equipmentFilter.isBlank() ||
+            (equipmentFilter == "sem" && it.equipment == "peso-do-corpo") ||
+            (equipmentFilter == "com" && it.equipment != "peso-do-corpo"))
     }
 
     val pageSize = 30
@@ -76,7 +81,7 @@ fun ExercisesScreen(
             }
         }
 
-        if (muscle.isNotBlank() || levelFilter.isNotBlank()) {
+        if (muscle.isNotBlank() || levelFilter.isNotBlank() || equipmentFilter.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -88,6 +93,10 @@ fun ExercisesScreen(
                 }
                 if (levelFilter.isNotBlank()) {
                     ActiveFilterChip(text = levelFilter, onClear = { levelFilter = "" })
+                }
+                if (equipmentFilter.isNotBlank()) {
+                    val label = if (equipmentFilter == "sem") "Sem Equipamento" else "Com Equipamento"
+                    ActiveFilterChip(text = label, onClear = { equipmentFilter = "" })
                 }
             }
         }
@@ -143,9 +152,11 @@ fun ExercisesScreen(
         FilterDialog(
             currentMuscle = muscle,
             currentLevel = levelFilter,
-            onApply = { m, l ->
+            currentEquipment = equipmentFilter,
+            onApply = { m, l, eq ->
                 muscle = m
                 levelFilter = l
+                equipmentFilter = eq
                 showFilterDialog = false
             },
             onDismiss = { showFilterDialog = false }
@@ -183,11 +194,13 @@ fun ActiveFilterChip(text: String, onClear: () -> Unit) {
 fun FilterDialog(
     currentMuscle: String,
     currentLevel: String,
-    onApply: (muscle: String, level: String) -> Unit,
+    currentEquipment: String,
+    onApply: (muscle: String, level: String, equipment: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedMuscle by remember { mutableStateOf(currentMuscle) }
     var selectedLevel by remember { mutableStateOf(currentLevel) }
+    var selectedEquipment by remember { mutableStateOf(currentEquipment) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -297,6 +310,41 @@ fun FilterDialog(
                         }
                     }
                 }
+                Spacer(Modifier.height(20.dp))
+
+                Text("Equipamento", color = CeaColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+
+                val equipments = listOf(
+                    Pair("Todos", ""),
+                    Pair("Sem Equipamento", "sem"),
+                    Pair("Com Equipamento", "com")
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    equipments.forEach { (label, value) ->
+                        val isSelected = selectedEquipment == value
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) CeaColors.Green else CeaColors.CardAlt)
+                                .clickable { selectedEquipment = value }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.Black else CeaColors.Text,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(24.dp))
 
@@ -308,6 +356,7 @@ fun FilterDialog(
                         onClick = {
                             selectedMuscle = ""
                             selectedLevel = ""
+                            selectedEquipment = ""
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = CeaColors.CardAlt),
                         modifier = Modifier.weight(1f),
@@ -318,7 +367,7 @@ fun FilterDialog(
 
                     Button(
                         onClick = {
-                            onApply(selectedMuscle, selectedLevel)
+                            onApply(selectedMuscle, selectedLevel, selectedEquipment)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = CeaColors.Green),
                         modifier = Modifier.weight(1f),

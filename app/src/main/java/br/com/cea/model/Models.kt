@@ -22,7 +22,8 @@ data class Exercise(
     val instructions: String,
     val imageUri: String = "",
     val primaryMuscles: String = "",
-    val secondaryMuscles: String = ""
+    val secondaryMuscles: String = "",
+    val equipment: String = ""
 )
 
 data class Workout(

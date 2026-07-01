@@ -70,7 +70,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 instructions TEXT,
                 image_uri TEXT,
                 primary_muscles TEXT,
-                secondary_muscles TEXT
+                secondary_muscles TEXT,
+                equipment TEXT
             )
             """.trimIndent()
         )
@@ -335,7 +336,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                             instructions = cursor.getString(cursor.getColumnIndexOrThrow("instructions")),
                             imageUri = cursor.getString(cursor.getColumnIndexOrThrow("image_uri")),
                             primaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("primary_muscles")),
-                            secondaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("secondary_muscles"))
+                            secondaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("secondary_muscles")),
+                            equipment = cursor.getString(cursor.getColumnIndexOrThrow("equipment")) ?: ""
                         )
                     )
                 }
@@ -426,20 +428,21 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 }
                 val instructions = instructionsBuilder.toString()
                 val imageUri = jsonObject.optJSONArray("images")?.optString(0) ?: ""
+                val equipment = jsonObject.optString("equipment", "peso-do-corpo")
 
-                insertExercise(db, name, muscleGroup, level, instructions, imageUri, primaryMusclesStr, secondaryMusclesStr)
+                insertExercise(db, name, muscleGroup, level, instructions, imageUri, primaryMusclesStr, secondaryMusclesStr, equipment)
             }
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback manual seeding
-            insertExercise(db, "Supino reto", "Peito", "Intermediario", "Controle a descida e mantenha escapulas firmes.", "", "peito", "")
-            insertExercise(db, "Crucifixo inclinado", "Peito", "Intermediario", "Abra os cotovelos com amplitude segura.", "", "peito", "")
-            insertExercise(db, "Flexao de braco", "Peito", "Iniciante", "Mantenha tronco alinhado durante todo o movimento.", "", "peito", "")
-            insertExercise(db, "Puxada aberta", "Costas", "Intermediario", "Puxe com dorsais e evite elevar ombros.", "", "dorsais", "")
-            insertExercise(db, "Remada australiana", "Costas", "Iniciante", "Mantenha quadril firme e peito aberto.", "", "meio-das-costas", "")
-            insertExercise(db, "Agachamento livre", "Pernas", "Iniciante", "Desca mantendo joelhos alinhados aos pes.", "", "quadriceps", "")
-            insertExercise(db, "Afundo alternado", "Pernas", "Intermediario", "Controle a descida e suba sem impulso.", "", "quadriceps", "")
-            insertExercise(db, "Elevacao lateral", "Ombros", "Iniciante", "Suba ate a linha dos ombros sem impulso.", "", "ombros", "")
+            insertExercise(db, "Supino reto", "Peito", "Intermediario", "Controle a descida e mantenha escapulas firmes.", "", "peito", "", "barra")
+            insertExercise(db, "Crucifixo inclinado", "Peito", "Intermediario", "Abra os cotovelos com amplitude segura.", "", "peito", "", "halteres")
+            insertExercise(db, "Flexao de braco", "Peito", "Iniciante", "Mantenha tronco alinhado durante todo o movimento.", "", "peito", "", "peso-do-corpo")
+            insertExercise(db, "Puxada aberta", "Costas", "Intermediario", "Puxe com dorsais e evite elevar ombros.", "", "dorsais", "", "cabo")
+            insertExercise(db, "Remada australiana", "Costas", "Iniciante", "Mantenha quadril firme e peito aberto.", "", "meio-das-costas", "", "peso-do-corpo")
+            insertExercise(db, "Agachamento livre", "Pernas", "Iniciante", "Desca mantendo joelhos alinhados aos pes.", "", "quadriceps", "", "peso-do-corpo")
+            insertExercise(db, "Afundo alternado", "Pernas", "Intermediario", "Controle a descida e suba sem impulso.", "", "quadriceps", "", "peso-do-corpo")
+            insertExercise(db, "Elevacao lateral", "Ombros", "Iniciante", "Suba ate a linha dos ombros sem impulso.", "", "ombros", "", "halteres")
         }
 
         insertWorkout(db, "Push hipertrofia A", "Hipertrofia", "Intermediario", "60 min", true, false, null)
@@ -448,7 +451,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         insertWorkout(db, "Mobilidade", "Mobilidade", "Iniciante", "20 min", true, false, null)
     }
 
-    private fun insertExercise(db: SQLiteDatabase, name: String, muscle: String, level: String, instructions: String, imageUri: String, primaryMuscles: String, secondaryMuscles: String) {
+    private fun insertExercise(db: SQLiteDatabase, name: String, muscle: String, level: String, instructions: String, imageUri: String, primaryMuscles: String, secondaryMuscles: String, equipment: String) {
         db.insert(
             "exercise_catalog",
             null,
@@ -460,6 +463,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 put("image_uri", imageUri)
                 put("primary_muscles", primaryMuscles)
                 put("secondary_muscles", secondaryMuscles)
+                put("equipment", equipment)
             }
         )
     }
@@ -595,6 +599,6 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 6
+        private const val DB_VERSION = 7
     }
 }

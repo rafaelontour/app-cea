@@ -76,7 +76,7 @@ fun CreateWorkoutScreen(
                     objective = objective,
                     level = level,
                     duration = duration,
-                    publicWorkout = true,
+                    publicWorkout = false,
                     exercises = selectedExercises.map { it.name }
                 )
             )

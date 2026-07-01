@@ -226,6 +226,7 @@ private fun CeaApp(activity: MainActivity) {
             )
             Screen.Exercises -> ExercisesScreen(
                 modifier = modifier,
+                profile = profile,
                 exercises = database.listExercises(),
                 selectedExercises = selectedExercises,
                 onBack = {

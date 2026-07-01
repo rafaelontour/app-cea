@@ -18,10 +18,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import br.com.cea.model.Exercise
+import br.com.cea.model.UserProfile
 
 @Composable
 fun ExercisesScreen(
     modifier: Modifier,
+    profile: UserProfile,
     exercises: List<Exercise>,
     selectedExercises: MutableList<Exercise>,
     onBack: () -> Unit
@@ -167,6 +169,7 @@ fun ExercisesScreen(
         ExerciseDetailsDialog(
             exercise = selectedExercise!!,
             selectedExercises = selectedExercises,
+            profile = profile,
             onDismiss = { selectedExercise = null }
         )
     }
@@ -385,9 +388,11 @@ fun FilterDialog(
 fun ExerciseDetailsDialog(
     exercise: Exercise,
     selectedExercises: MutableList<Exercise>,
+    profile: UserProfile,
     onDismiss: () -> Unit
 ) {
     val isAlreadyAdded = selectedExercises.any { it.name == exercise.name }
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -429,10 +434,15 @@ fun ExerciseDetailsDialog(
                     onClick = {
                         if (isAlreadyAdded) {
                             selectedExercises.removeAll { it.name == exercise.name }
+                            onDismiss()
                         } else {
-                            selectedExercises.add(exercise)
+                            if (profile.level == "Iniciante" && exercise.level != "Iniciante") {
+                                showConfirmDialog = true
+                            } else {
+                                selectedExercises.add(exercise)
+                                onDismiss()
+                            }
                         }
-                        onDismiss()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isAlreadyAdded) CeaColors.Red else CeaColors.Green
@@ -447,6 +457,47 @@ fun ExerciseDetailsDialog(
                     )
                 }
                 Spacer(Modifier.height(16.dp))
+
+                if (showConfirmDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showConfirmDialog = false },
+                        title = {
+                            Text(
+                                text = "Confirmar Exercício",
+                                color = CeaColors.Text,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "Você selecionou o nível 'Iniciante' no seu perfil, mas este exercício é de nível '${exercise.level}'. Tem certeza que deseja adicioná-lo ao seu treino?",
+                                color = CeaColors.Muted,
+                                fontSize = 14.sp
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    selectedExercises.add(exercise)
+                                    showConfirmDialog = false
+                                    onDismiss()
+                                }
+                            ) {
+                                Text("Sim, tenho certeza", color = CeaColors.Green, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showConfirmDialog = false }
+                            ) {
+                                Text("Cancelar", color = CeaColors.Red, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        containerColor = CeaColors.Card,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
 
                 if (exercise.primaryMuscles.isNotBlank()) {
                     Text("Regiões Primárias:", color = CeaColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)

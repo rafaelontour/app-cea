@@ -119,7 +119,9 @@ private fun CeaApp(activity: MainActivity) {
             profile = profile,
             onSave = { updated ->
                 database.saveProfile(updated)
-                database.logWeight(updated.weightKg, updated.heightCm)
+                if (updated.weightKg > 0.0 && updated.heightCm > 0.0) {
+                    database.logWeight(updated.weightKg, updated.heightCm)
+                }
                 preferences.edit().putBoolean("profile_done", true).apply()
                 analytics.track(context, "profile_created")
                 profile = updated
@@ -225,7 +227,7 @@ private fun CeaApp(activity: MainActivity) {
                 workouts = database.listWorkouts(publicOnly = true),
                 onCalendar = { screen = Screen.Calendar },
                 onImport = { workout ->
-                    database.importWorkout(workout, "Cainan")
+                    database.importWorkout(workout, profile.name.ifBlank { "Usuário" })
                     analytics.track(context, "workout_imported")
                     refresh++
                     screen = Screen.MyWorkouts

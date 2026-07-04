@@ -2,16 +2,16 @@ package br.com.cea.model
 
 data class UserProfile(
     val id: Long = 0,
-    val name: String = "Cainan",
-    val age: Int = 18,
-    val weightKg: Double = 70.0,
-    val heightCm: Double = 175.0,
-    val activityLevel: String = "Treina regularmente",
-    val level: String = "Intermediário",
-    val objective: String = "Hipertrofia",
-    val frequencyPerWeek: Int = 7,
-    val hoursPerDay: Double = 1.0,
-    val publicProfile: Boolean = true
+    val name: String = "",
+    val age: Int = 0,
+    val weightKg: Double = 0.0,
+    val heightCm: Double = 0.0,
+    val activityLevel: String = "",
+    val level: String = "",
+    val objective: String = "",
+    val frequencyPerWeek: Int = 0,
+    val hoursPerDay: Double = 0.0,
+    val publicProfile: Boolean = false
 )
 
 data class Exercise(

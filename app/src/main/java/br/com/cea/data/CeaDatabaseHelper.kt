@@ -560,6 +560,110 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         return 0
     }
 
+    fun getActiveTrainingDaysCount(): Int {
+        val activeDays = mutableSetOf<String>()
+        val cal = Calendar.getInstance()
+        readableDatabase.rawQuery("SELECT completed_at FROM workout_history", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                cal.timeInMillis = cursor.getLong(0)
+                activeDays.add("${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}")
+            }
+        }
+        return activeDays.size
+    }
+
+    fun getCurrentWorkoutStreakDays(): Int {
+        val completedDays = mutableSetOf<String>()
+        val cal = Calendar.getInstance()
+        readableDatabase.rawQuery("SELECT completed_at FROM workout_history", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                cal.timeInMillis = cursor.getLong(0)
+                completedDays.add("${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}")
+            }
+        }
+        if (completedDays.isEmpty()) return 0
+
+        val cursorDay = Calendar.getInstance()
+        var key = "${cursorDay.get(Calendar.YEAR)}-${cursorDay.get(Calendar.DAY_OF_YEAR)}"
+        if (key !in completedDays) {
+            cursorDay.add(Calendar.DAY_OF_YEAR, -1)
+            key = "${cursorDay.get(Calendar.YEAR)}-${cursorDay.get(Calendar.DAY_OF_YEAR)}"
+        }
+
+        var streak = 0
+        while (key in completedDays) {
+            streak++
+            cursorDay.add(Calendar.DAY_OF_YEAR, -1)
+            key = "${cursorDay.get(Calendar.YEAR)}-${cursorDay.get(Calendar.DAY_OF_YEAR)}"
+        }
+        return streak
+    }
+
+    fun getTotalWorkoutDurationSeconds(): Int {
+        readableDatabase.rawQuery("SELECT COALESCE(SUM(duration_seconds), 0) FROM workout_history", null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getInt(0)
+            }
+        }
+        return 0
+    }
+
+    fun getCurrentWeekWorkoutCounts(): List<Int> {
+        val counts = MutableList(7) { 0 }
+        val weekStart = Calendar.getInstance().apply {
+            firstDayOfWeek = Calendar.MONDAY
+            set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val weekEnd = Calendar.getInstance().apply {
+            timeInMillis = weekStart.timeInMillis
+            add(Calendar.DAY_OF_YEAR, 7)
+        }
+
+        readableDatabase.rawQuery(
+            "SELECT completed_at FROM workout_history WHERE completed_at >= ? AND completed_at < ?",
+            arrayOf(weekStart.timeInMillis.toString(), weekEnd.timeInMillis.toString())
+        ).use { cursor ->
+            val cal = Calendar.getInstance()
+            while (cursor.moveToNext()) {
+                cal.timeInMillis = cursor.getLong(0)
+                val index = when (cal.get(Calendar.DAY_OF_WEEK)) {
+                    Calendar.MONDAY -> 0
+                    Calendar.TUESDAY -> 1
+                    Calendar.WEDNESDAY -> 2
+                    Calendar.THURSDAY -> 3
+                    Calendar.FRIDAY -> 4
+                    Calendar.SATURDAY -> 5
+                    Calendar.SUNDAY -> 6
+                    else -> 0
+                }
+                counts[index]++
+            }
+        }
+        return counts
+    }
+
+    fun getMostTrainedObjective(): String? {
+        val sql = """
+            SELECT w.objective, COUNT(*) AS total
+            FROM workout_history h
+            INNER JOIN workouts w ON h.workout_id = w.id
+            WHERE w.objective IS NOT NULL AND TRIM(w.objective) != ''
+            GROUP BY w.objective
+            ORDER BY total DESC, MAX(h.completed_at) DESC
+            LIMIT 1
+        """.trimIndent()
+        readableDatabase.rawQuery(sql, null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getString(0)
+            }
+        }
+        return null
+    }
+
     fun getWorkoutHistoryList(): List<Pair<String, Long>> {
         val list = mutableListOf<Pair<String, Long>>()
         val sql = """

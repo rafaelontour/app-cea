@@ -420,7 +420,7 @@ fun StatusPill(text: String, color: Color) {
 }
 
 fun String.firstName(): String {
-    return trim().split(" ").firstOrNull().orEmpty().ifBlank { "Nome" }
+    return trim().split(" ").firstOrNull().orEmpty().ifBlank { "Atleta" }
 }
 
 fun String.normalizedTrainingLevel(): String {

@@ -37,9 +37,16 @@ fun ActiveWorkoutScreen(
     var restTimeInput by remember { mutableStateOf("15") }
     var customRestSeconds by remember { mutableIntStateOf(15) }
     var workoutCompleted by remember { mutableStateOf(false) }
+    val startedAt = remember { System.currentTimeMillis() }
 
-    val exercises = workout.exercises
-    val currentExercise = exercises.getOrNull(currentExerciseIndex) ?: ""
+    val exerciseSpecs = remember(workout) {
+        workout.exerciseSpecs.ifEmpty {
+            workout.exercises.map { br.com.cea.model.WorkoutExerciseSpec(name = it) }
+        }
+    }
+    val exercises = exerciseSpecs.map { it.name }
+    val currentSpec = exerciseSpecs.getOrNull(currentExerciseIndex)
+    val currentExercise = currentSpec?.name ?: ""
 
     val exercisesCatalog = remember { database.listExercises() }
     val cleanExerciseName = remember(currentExercise) {
@@ -58,14 +65,22 @@ fun ActiveWorkoutScreen(
         }
     }
 
+    LaunchedEffect(currentSpec?.restSeconds) {
+        val rest = currentSpec?.restSeconds?.takeIf { it > 0 } ?: 15
+        restTimeInput = rest.toString()
+        customRestSeconds = rest
+    }
+
     var timeLeft by remember(currentExerciseIndex, isResting, defaultWorkSeconds) {
-        mutableIntStateOf(if (isResting) customRestSeconds else defaultWorkSeconds)
+        val workSeconds = currentSpec?.durationSeconds?.takeIf { it > 0 } ?: defaultWorkSeconds
+        mutableIntStateOf(if (isResting) customRestSeconds else workSeconds)
     }
     var isTimerRunning by remember { mutableStateOf(true) }
 
     fun finishWorkout() {
         if (!workoutCompleted) {
-            database.logWorkoutCompletion(workout.id)
+            val elapsedSeconds = ((System.currentTimeMillis() - startedAt) / 1000L).toInt()
+            database.logWorkoutCompletion(workout.id, elapsedSeconds)
             isTimerRunning = false
             workoutCompleted = true
         }
@@ -157,6 +172,16 @@ fun ActiveWorkoutScreen(
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
+                    if (currentSpec != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "${currentSpec.sets} séries - ${currentSpec.reps} reps - ${currentSpec.restSeconds}s descanso",
+                            color = CeaColors.Muted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                     if (currentExerciseObj != null) {
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -263,6 +288,7 @@ fun ActiveWorkoutScreen(
         Spacer(Modifier.height(8.dp))
         exercises.forEachIndexed { index, name ->
             val isCurrent = index == currentExerciseIndex && !isResting
+            val spec = exerciseSpecs[index]
             val isCompleted = index < currentExerciseIndex
 
             CeaCard(
@@ -288,12 +314,19 @@ fun ActiveWorkoutScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = name,
-                            color = if (isCurrent) CeaColors.Green else if (isCompleted) CeaColors.Muted else CeaColors.Text,
-                            fontSize = 14.sp,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
-                        )
+                        Column {
+                            Text(
+                                text = name,
+                                color = if (isCurrent) CeaColors.Green else if (isCompleted) CeaColors.Muted else CeaColors.Text,
+                                fontSize = 14.sp,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(
+                                text = "${spec.sets}x ${spec.reps} reps - ${spec.restSeconds}s descanso",
+                                color = CeaColors.Muted,
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                     if (isCompleted) {
                         Text("✓ Concluído", color = CeaColors.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)

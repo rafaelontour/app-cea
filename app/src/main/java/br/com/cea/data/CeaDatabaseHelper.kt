@@ -5,8 +5,10 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import br.com.cea.model.Exercise
+import br.com.cea.model.ScheduledWorkout
 import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
+import br.com.cea.model.WorkoutExerciseSpec
 import br.com.cea.model.WeightLog
 import org.json.JSONArray
 import java.util.Calendar
@@ -76,6 +78,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
             """.trimIndent()
         )
         db.execSQL("CREATE TABLE workout_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, workout_id INTEGER, completed_at INTEGER, duration_seconds INTEGER, notes TEXT)")
+        db.execSQL("CREATE TABLE scheduled_workouts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, workout_id INTEGER, scheduled_at INTEGER, status TEXT)")
         db.execSQL("CREATE TABLE weekly_goals (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, week_start INTEGER, target_sessions INTEGER, completed_sessions INTEGER)")
         db.execSQL("CREATE TABLE achievements (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, code TEXT, title TEXT, earned_at INTEGER)")
         db.execSQL("CREATE TABLE weight_bmi_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, weight_kg REAL, height_cm REAL, bmi REAL, classification TEXT, recorded_at INTEGER)")
@@ -93,6 +96,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
             "weight_bmi_history",
             "achievements",
             "weekly_goals",
+            "scheduled_workouts",
             "workout_history",
             "exercise_catalog",
             "workout_exercises",
@@ -160,17 +164,19 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 }
             )
 
-            workout.exercises.forEachIndexed { index, exerciseName ->
+            workout.exerciseSpecs.ifEmpty {
+                workout.exercises.map { WorkoutExerciseSpec(name = it) }
+            }.forEachIndexed { index, exercise ->
                 db.insert(
                     "workout_exercises",
                     null,
                     ContentValues().apply {
                         put("workout_id", workoutId)
-                        put("exercise_name", exerciseName)
-                        put("sets", 3)
-                        put("reps", "10")
-                        put("duration_seconds", 0)
-                        put("rest_seconds", 60)
+                        put("exercise_name", exercise.name)
+                        put("sets", exercise.sets)
+                        put("reps", exercise.reps)
+                        put("duration_seconds", exercise.durationSeconds)
+                        put("rest_seconds", exercise.restSeconds)
                         put("order_index", index)
                     }
                 )
@@ -183,13 +189,25 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
     }
 
     fun getWorkoutExercises(workoutId: Long): List<String> {
+        return getWorkoutExerciseSpecs(workoutId).map { it.name }
+    }
+
+    fun getWorkoutExerciseSpecs(workoutId: Long): List<WorkoutExerciseSpec> {
         return buildList {
             readableDatabase.rawQuery(
-                "SELECT exercise_name FROM workout_exercises WHERE workout_id = ? ORDER BY order_index",
+                "SELECT exercise_name, sets, reps, duration_seconds, rest_seconds FROM workout_exercises WHERE workout_id = ? ORDER BY order_index",
                 arrayOf(workoutId.toString())
             ).use { cursor ->
                 while (cursor.moveToNext()) {
-                    add(cursor.getString(0))
+                    add(
+                        WorkoutExerciseSpec(
+                            name = cursor.getString(0),
+                            sets = cursor.getInt(1).coerceAtLeast(1),
+                            reps = cursor.getString(2) ?: "10",
+                            durationSeconds = cursor.getInt(3).coerceAtLeast(0),
+                            restSeconds = cursor.getInt(4).coerceAtLeast(0)
+                        )
+                    )
                 }
             }
         }
@@ -207,7 +225,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 publicWorkout = cursor.getInt(cursor.getColumnIndexOrThrow("is_public")) == 1,
                 imported = cursor.getInt(cursor.getColumnIndexOrThrow("is_imported")) == 1,
                 origin = cursor.getString(cursor.getColumnIndexOrThrow("origin_user_name")),
-                exercises = getWorkoutExercises(workoutId)
+                exercises = getWorkoutExercises(workoutId),
+                exerciseSpecs = getWorkoutExerciseSpecs(workoutId)
             )
         }
     }
@@ -229,17 +248,19 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
             )
 
             db.delete("workout_exercises", "workout_id = ?", arrayOf(workout.id.toString()))
-            workout.exercises.forEachIndexed { index, exerciseName ->
+            workout.exerciseSpecs.ifEmpty {
+                workout.exercises.map { WorkoutExerciseSpec(name = it) }
+            }.forEachIndexed { index, exercise ->
                 db.insert(
                     "workout_exercises",
                     null,
                     ContentValues().apply {
                         put("workout_id", workout.id)
-                        put("exercise_name", exerciseName)
-                        put("sets", 3)
-                        put("reps", "10")
-                        put("duration_seconds", 0)
-                        put("rest_seconds", 60)
+                        put("exercise_name", exercise.name)
+                        put("sets", exercise.sets)
+                        put("reps", exercise.reps)
+                        put("duration_seconds", exercise.durationSeconds)
+                        put("rest_seconds", exercise.restSeconds)
                         put("order_index", index)
                     }
                 )
@@ -254,6 +275,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         val db = writableDatabase
         db.beginTransaction()
         try {
+            ensureScheduledWorkoutsTable()
+            db.delete("scheduled_workouts", "workout_id = ?", arrayOf(workoutId.toString()))
             db.delete("workout_exercises", "workout_id = ?", arrayOf(workoutId.toString()))
             db.delete("workouts", "id = ?", arrayOf(workoutId.toString()))
             db.setTransactionSuccessful()
@@ -304,7 +327,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                             publicWorkout = cursor.getInt(cursor.getColumnIndexOrThrow("is_public")) == 1,
                             imported = cursor.getInt(cursor.getColumnIndexOrThrow("is_imported")) == 1,
                             origin = cursor.getString(cursor.getColumnIndexOrThrow("origin_user_name")),
-                            exercises = getWorkoutExercises(id)
+                            exercises = getWorkoutExercises(id),
+                            exerciseSpecs = getWorkoutExerciseSpecs(id)
                         )
                     )
                 }
@@ -537,7 +561,86 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         }
     }
 
-    fun logWorkoutCompletion(workoutId: Long): Long {
+    fun scheduleWorkout(workoutId: Long, scheduledAt: Long): Long {
+        ensureScheduledWorkoutsTable()
+        return writableDatabase.insert(
+            "scheduled_workouts",
+            null,
+            ContentValues().apply {
+                put("user_id", 1)
+                put("workout_id", workoutId)
+                put("scheduled_at", scheduledAt)
+                put("status", "scheduled")
+            }
+        )
+    }
+
+    fun getScheduledDaysInMonth(year: Int, month: Int): Set<Int> {
+        ensureScheduledWorkoutsTable()
+        val scheduledDays = mutableSetOf<Int>()
+        val cal = Calendar.getInstance()
+        readableDatabase.rawQuery("SELECT scheduled_at FROM scheduled_workouts", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                cal.timeInMillis = cursor.getLong(0)
+                if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                    scheduledDays.add(cal.get(Calendar.DAY_OF_MONTH))
+                }
+            }
+        }
+        return scheduledDays
+    }
+
+    fun getMissedScheduledDaysInMonth(year: Int, month: Int): Set<Int> {
+        ensureScheduledWorkoutsTable()
+        val completedDays = getCompletedDaysInMonth(year, month)
+        val missedDays = mutableSetOf<Int>()
+        val now = Calendar.getInstance()
+        val cal = Calendar.getInstance()
+        readableDatabase.rawQuery("SELECT scheduled_at FROM scheduled_workouts", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                cal.timeInMillis = cursor.getLong(0)
+                if (cal.get(Calendar.YEAR) == year &&
+                    cal.get(Calendar.MONTH) == month &&
+                    cal.before(startOfToday(now)) &&
+                    cal.get(Calendar.DAY_OF_MONTH) !in completedDays
+                ) {
+                    missedDays.add(cal.get(Calendar.DAY_OF_MONTH))
+                }
+            }
+        }
+        return missedDays
+    }
+
+    fun getUpcomingScheduledWorkouts(limit: Int = 5): List<ScheduledWorkout> {
+        ensureScheduledWorkoutsTable()
+        val start = startOfToday(Calendar.getInstance()).timeInMillis
+        val sql = """
+            SELECT s.id, s.workout_id, w.title, w.objective, w.duration, s.scheduled_at
+            FROM scheduled_workouts s
+            INNER JOIN workouts w ON s.workout_id = w.id
+            WHERE s.scheduled_at >= ?
+            ORDER BY s.scheduled_at ASC
+            LIMIT ?
+        """.trimIndent()
+        return buildList {
+            readableDatabase.rawQuery(sql, arrayOf(start.toString(), limit.toString())).use { cursor ->
+                while (cursor.moveToNext()) {
+                    add(
+                        ScheduledWorkout(
+                            id = cursor.getLong(0),
+                            workoutId = cursor.getLong(1),
+                            workoutTitle = cursor.getString(2),
+                            workoutObjective = cursor.getString(3),
+                            workoutDuration = cursor.getString(4),
+                            scheduledAt = cursor.getLong(5)
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun logWorkoutCompletion(workoutId: Long, durationSeconds: Int): Long {
         return writableDatabase.insert(
             "workout_history",
             null,
@@ -545,10 +648,24 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 put("user_id", 1)
                 put("workout_id", workoutId)
                 put("completed_at", System.currentTimeMillis())
-                put("duration_seconds", 30 * 60)
+                put("duration_seconds", durationSeconds.coerceAtLeast(0))
                 put("notes", "Treino concluído via temporizador")
             }
         )
+    }
+
+    private fun ensureScheduledWorkoutsTable() {
+        writableDatabase.execSQL("CREATE TABLE IF NOT EXISTS scheduled_workouts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, workout_id INTEGER, scheduled_at INTEGER, status TEXT)")
+    }
+
+    private fun startOfToday(now: Calendar): Calendar {
+        return Calendar.getInstance().apply {
+            timeInMillis = now.timeInMillis
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
     }
 
     fun getCompletedWorkoutsCount(): Int {
@@ -700,6 +817,6 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 7
+        private const val DB_VERSION = 8
     }
 }

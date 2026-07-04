@@ -35,7 +35,25 @@ data class Workout(
     val publicWorkout: Boolean = false,
     val imported: Boolean = false,
     val origin: String? = null,
-    val exercises: List<String> = emptyList()
+    val exercises: List<String> = emptyList(),
+    val exerciseSpecs: List<WorkoutExerciseSpec> = emptyList()
+)
+
+data class WorkoutExerciseSpec(
+    val name: String,
+    val sets: Int = 3,
+    val reps: String = "10",
+    val durationSeconds: Int = 0,
+    val restSeconds: Int = 60
+)
+
+data class ScheduledWorkout(
+    val id: Long,
+    val workoutId: Long,
+    val workoutTitle: String,
+    val workoutObjective: String,
+    val workoutDuration: String,
+    val scheduledAt: Long
 )
 
 data class CalendarDay(

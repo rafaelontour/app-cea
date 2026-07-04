@@ -278,14 +278,13 @@ private fun CeaApp(activity: MainActivity) {
                 }
             }
             Screen.Calendar -> {
-                val workouts = database.listWorkouts(publicOnly = false)
-                val firstWorkout = workouts.firstOrNull()
                 CalendarScreen(
                     modifier = modifier,
                     database = database,
-                    onStart = {
-                        if (firstWorkout != null) {
-                            activeWorkout = firstWorkout
+                    onStart = { workoutId ->
+                        val workout = database.getWorkout(workoutId)
+                        if (workout != null) {
+                            activeWorkout = workout
                             screen = Screen.ActiveWorkout
                         } else {
                             screen = Screen.MyWorkouts
@@ -360,12 +359,13 @@ private fun AppShell(
     }
 }
 
-private fun navItems() = listOf(Screen.Home, Screen.MyWorkouts, Screen.Progress, Screen.Exercises, Screen.Profile)
+private fun navItems() = listOf(Screen.Home, Screen.MyWorkouts, Screen.Calendar, Screen.Progress, Screen.Exercises, Screen.Profile)
 
 private fun Screen.icon(): ImageVector {
     return when (this) {
         Screen.Home -> Icons.Filled.Home
         Screen.MyWorkouts -> Icons.Filled.ViewList
+        Screen.Calendar -> Icons.Filled.ViewList
         Screen.Progress -> Icons.Filled.ShowChart
         Screen.Exercises -> Icons.Filled.FitnessCenter
         Screen.Profile -> Icons.Filled.Person

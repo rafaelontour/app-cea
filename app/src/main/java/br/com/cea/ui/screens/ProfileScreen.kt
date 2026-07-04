@@ -162,6 +162,12 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
     val completedDays = remember(database, currentMonthOffset, year) {
         database.getCompletedDaysInMonth(year, calendar.get(Calendar.MONTH))
     }
+    val scheduledDays = remember(database, currentMonthOffset, year) {
+        database.getScheduledDaysInMonth(year, calendar.get(Calendar.MONTH))
+    }
+    val missedDays = remember(database, currentMonthOffset, year) {
+        database.getMissedScheduledDaysInMonth(year, calendar.get(Calendar.MONTH))
+    }
 
     CeaCard {
         Row(
@@ -216,6 +222,8 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
                     if (day != null) {
                         val state = when {
                             day in completedDays -> DayState.Completed
+                            day in missedDays -> DayState.Missed
+                            day in scheduledDays -> DayState.Scheduled
                             else -> DayState.Empty
                         }
                         CalendarCell(day, state)

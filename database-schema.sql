@@ -1,7 +1,7 @@
 -- CEA SQLite database schema
 -- Source: app/src/main/java/br/com/cea/data/CeaDatabaseHelper.kt
 -- Database name: cea.db
--- Database version: 7
+-- Database version: 8
 --
 -- Notes:
 -- - The current Android schema does not declare foreign key constraints.
@@ -66,6 +66,14 @@ CREATE TABLE workout_history (
     notes TEXT
 );
 
+CREATE TABLE scheduled_workouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    workout_id INTEGER,
+    scheduled_at INTEGER,
+    status TEXT
+);
+
 CREATE TABLE weekly_goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -111,4 +119,3 @@ CREATE TABLE app_preferences (
     key TEXT PRIMARY KEY,
     value TEXT
 );
-

@@ -7,7 +7,7 @@ data class UserProfile(
     val weightKg: Double = 70.0,
     val heightCm: Double = 175.0,
     val activityLevel: String = "Treina regularmente",
-    val level: String = "Intermediario",
+    val level: String = "Intermediário",
     val objective: String = "Hipertrofia",
     val frequencyPerWeek: Int = 7,
     val hoursPerDay: Double = 1.0,

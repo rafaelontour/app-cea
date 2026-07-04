@@ -2,14 +2,22 @@ package br.com.cea.ui
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,6 +36,7 @@ fun ActiveWorkoutScreen(
     var isResting by remember { mutableStateOf(false) }
     var restTimeInput by remember { mutableStateOf("15") }
     var customRestSeconds by remember { mutableIntStateOf(15) }
+    var workoutCompleted by remember { mutableStateOf(false) }
 
     val exercises = workout.exercises
     val currentExercise = exercises.getOrNull(currentExerciseIndex) ?: ""
@@ -43,8 +52,8 @@ fun ActiveWorkoutScreen(
     val defaultWorkSeconds = remember(currentExerciseObj) {
         when (currentExerciseObj?.level) {
             "Iniciante" -> 20
-            "Intermediario" -> 25
-            "Avancado" -> 30
+            "Intermediário", "Intermediario" -> 25
+            "Avançado", "Avancado" -> 30
             else -> 30
         }
     }
@@ -54,7 +63,18 @@ fun ActiveWorkoutScreen(
     }
     var isTimerRunning by remember { mutableStateOf(true) }
 
+    fun finishWorkout() {
+        if (!workoutCompleted) {
+            database.logWorkoutCompletion(workout.id)
+            isTimerRunning = false
+            workoutCompleted = true
+        }
+    }
+
     LaunchedEffect(isTimerRunning, timeLeft) {
+        if (workoutCompleted) {
+            return@LaunchedEffect
+        }
         if (isTimerRunning && timeLeft > 0) {
             kotlinx.coroutines.delay(1000L)
             timeLeft--
@@ -66,8 +86,7 @@ fun ActiveWorkoutScreen(
                 if (currentExerciseIndex < exercises.size - 1) {
                     currentExerciseIndex++
                 } else {
-                    database.logWorkoutCompletion(workout.id)
-                    onFinished()
+                    finishWorkout()
                 }
             }
         }
@@ -199,8 +218,7 @@ fun ActiveWorkoutScreen(
                                 if (currentExerciseIndex < exercises.size - 1) {
                                     currentExerciseIndex++
                                 } else {
-                                    database.logWorkoutCompletion(workout.id)
-                                    onFinished()
+                                    finishWorkout()
                                 }
                             }
                         },
@@ -288,4 +306,78 @@ fun ActiveWorkoutScreen(
             }
         }
     }
+
+    if (workoutCompleted) {
+        WorkoutFinishedDialog(
+            workoutTitle = workout.title,
+            exerciseCount = exercises.size,
+            onClose = onFinished
+        )
+    }
+}
+
+@Composable
+private fun WorkoutFinishedDialog(
+    workoutTitle: String,
+    exerciseCount: Int,
+    onClose: () -> Unit
+) {
+    val pulse = rememberInfiniteTransition(label = "finish-pulse")
+    val scale by pulse.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "finish-scale"
+    )
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = {},
+        title = {
+            Text("Treino concluído", color = CeaColors.Text, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .graphicsLayer(scaleX = scale, scaleY = scale),
+                    color = CeaColors.Green,
+                    shape = CircleShape
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("✓", color = Color.Black, fontSize = 38.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    text = workoutTitle,
+                    color = CeaColors.Text,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "$exerciseCount exercícios finalizados. Bom trabalho!",
+                    color = CeaColors.Muted,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onClose,
+                colors = ButtonDefaults.buttonColors(containerColor = CeaColors.Green, contentColor = Color.Black),
+                shape = RoundedCornerShape(9.dp)
+            ) {
+                Text("Ver meus treinos", fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = CeaColors.Card,
+        shape = RoundedCornerShape(16.dp)
+    )
 }

@@ -25,8 +25,6 @@ fun CalendarScreen(
 
     val calendar = remember(currentMonthOffset) {
         Calendar.getInstance().apply {
-            set(Calendar.YEAR, 2026)
-            set(Calendar.MONTH, Calendar.JUNE)
             add(Calendar.MONTH, currentMonthOffset)
             set(Calendar.DAY_OF_MONTH, 1)
         }
@@ -115,8 +113,6 @@ fun CalendarScreen(
                     if (day != null) {
                         val state = when {
                             day in completedDays -> DayState.Completed
-                            day == 8 -> DayState.Missed
-                            day in listOf(12, 24) -> DayState.Scheduled
                             else -> DayState.Empty
                         }
                         CalendarCell(day, state)
@@ -134,7 +130,7 @@ fun CalendarScreen(
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusPill("Concluido", CeaColors.Green)
+            StatusPill("Concluído", CeaColors.Green)
             StatusPill("Agendado", CeaColors.Blue)
             StatusPill("Perdido", CeaColors.Red)
         }

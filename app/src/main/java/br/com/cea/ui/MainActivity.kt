@@ -48,8 +48,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = CeaColors.Black.toArgb()
         window.navigationBarColor = CeaColors.Black.toArgb()
-        requestNotificationPermission()
-
         setContent {
             CeaTheme {
                 CeaApp(activity = this)
@@ -57,7 +55,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestNotificationPermission() {
+    fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -101,9 +99,19 @@ private fun CeaApp(activity: MainActivity) {
     val selectedExercises = remember { mutableStateListOf<Exercise>() }
     var editingWorkoutId by remember { mutableStateOf<Long?>(null) }
     var activeWorkout by remember { mutableStateOf<Workout?>(null) }
+    var exerciseMuscleFilter by remember { mutableStateOf("") }
 
     LaunchedEffect(screen, refresh) {
         profile = database.getProfile()
+    }
+
+    fun promoteProfileLevelIfNeeded(newLevel: String) {
+        val normalizedLevel = newLevel.normalizedTrainingLevel()
+        if (isTrainingLevelAbove(normalizedLevel, profile.level)) {
+            val updatedProfile = profile.copy(level = normalizedLevel)
+            database.saveProfile(updatedProfile)
+            profile = updatedProfile
+        }
     }
 
     if (screen == Screen.ProfileSetup) {
@@ -124,13 +132,13 @@ private fun CeaApp(activity: MainActivity) {
     AppShell(
         screen = screen,
         title = when (screen) {
-            Screen.Home -> "Ola, ${profile.name.firstName()}"
+            Screen.Home -> "Olá, ${profile.name.firstName()}"
             Screen.CreateWorkout -> "Criar novo treino"
             Screen.MyWorkouts -> "Meus treinos"
             Screen.Explore -> "Treinos"
             Screen.Progress -> "Progresso"
-            Screen.Exercises -> "Exercicios"
-            Screen.Calendar -> "Calendario"
+            Screen.Exercises -> "Exercícios"
+            Screen.Calendar -> "Calendário"
             Screen.Profile -> "Perfil"
             Screen.ActiveWorkout -> "Treino Ativo"
             Screen.ProfileSetup -> ""
@@ -138,8 +146,8 @@ private fun CeaApp(activity: MainActivity) {
         subtitle = when (screen) {
             Screen.Home -> "Pronto para evoluir hoje?"
             Screen.CreateWorkout -> "Monte um plano personalizado"
-            Screen.Progress -> "Sua evolucao em numeros"
-            Screen.Calendar -> "Junho 2026"
+            Screen.Progress -> "Sua evolução em números"
+            Screen.Calendar -> "Sua rotina de treinos"
             Screen.ActiveWorkout -> "Mantenha o foco!"
             else -> ""
         },
@@ -151,7 +159,10 @@ private fun CeaApp(activity: MainActivity) {
                 onCreateWorkout = { screen = Screen.CreateWorkout },
                 onMyWorkouts = { screen = Screen.MyWorkouts },
                 onExplore = { screen = Screen.Explore },
-                onExercises = { screen = Screen.Exercises }
+                onExercises = {
+                    exerciseMuscleFilter = ""
+                    screen = Screen.Exercises
+                }
             )
             Screen.CreateWorkout -> CreateWorkoutScreen(
                 modifier = modifier,
@@ -159,13 +170,18 @@ private fun CeaApp(activity: MainActivity) {
                 editingWorkoutId = editingWorkoutId,
                 database = database,
                 selectedExercises = selectedExercises,
-                onExercises = { screen = Screen.Exercises },
+                onExercises = { muscle ->
+                    exerciseMuscleFilter = muscle
+                    screen = Screen.Exercises
+                },
                 onSave = { workout ->
+                    promoteProfileLevelIfNeeded(workout.level)
+                    val workoutToSave = workout.copy(level = workout.level.normalizedTrainingLevel())
                     if (editingWorkoutId != null) {
-                        database.updateWorkout(workout.copy(id = editingWorkoutId!!))
+                        database.updateWorkout(workoutToSave.copy(id = editingWorkoutId!!))
                         analytics.track(context, "workout_updated")
                     } else {
-                        database.saveWorkout(workout)
+                        database.saveWorkout(workoutToSave)
                         analytics.track(context, "workout_generated")
                     }
                     editingWorkoutId = null
@@ -229,8 +245,13 @@ private fun CeaApp(activity: MainActivity) {
                 profile = profile,
                 exercises = database.listExercises(),
                 selectedExercises = selectedExercises,
+                initialMuscleFilter = exerciseMuscleFilter,
+                onLevelIncrease = { newLevel ->
+                    promoteProfileLevelIfNeeded(newLevel)
+                    refresh++
+                },
                 onBack = {
-                    if (editingWorkoutId != null || selectedExercises.isNotEmpty()) {
+                    if (editingWorkoutId != null || selectedExercises.isNotEmpty() || exerciseMuscleFilter.isNotBlank()) {
                         screen = Screen.CreateWorkout
                     } else {
                         screen = Screen.Home
@@ -277,6 +298,7 @@ private fun CeaApp(activity: MainActivity) {
                 database = database,
                 onEdit = { screen = Screen.ProfileSetup },
                 onWater = {
+                    activity.requestNotificationPermission()
                     database.logWater(250)
                     analytics.track(context, "water_logged")
                     refresh++

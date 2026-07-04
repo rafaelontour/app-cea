@@ -378,8 +378,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 val levelRaw = jsonObject.optString("level", "iniciante")
                 val level = when (levelRaw.lowercase()) {
                     "iniciante" -> "Iniciante"
-                    "intermediario" -> "Intermediario"
-                    "avancado" -> "Avancado"
+                    "intermediario" -> "Intermediário"
+                    "avancado" -> "Avançado"
                     else -> "Iniciante"
                 }
 
@@ -435,18 +435,18 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback manual seeding
-            insertExercise(db, "Supino reto", "Peito", "Intermediario", "Controle a descida e mantenha escapulas firmes.", "", "peito", "", "barra")
-            insertExercise(db, "Crucifixo inclinado", "Peito", "Intermediario", "Abra os cotovelos com amplitude segura.", "", "peito", "", "halteres")
-            insertExercise(db, "Flexao de braco", "Peito", "Iniciante", "Mantenha tronco alinhado durante todo o movimento.", "", "peito", "", "peso-do-corpo")
-            insertExercise(db, "Puxada aberta", "Costas", "Intermediario", "Puxe com dorsais e evite elevar ombros.", "", "dorsais", "", "cabo")
+            insertExercise(db, "Supino reto", "Peito", "Intermediário", "Controle a descida e mantenha escápulas firmes.", "", "peito", "", "barra")
+            insertExercise(db, "Crucifixo inclinado", "Peito", "Intermediário", "Abra os cotovelos com amplitude segura.", "", "peito", "", "halteres")
+            insertExercise(db, "Flexão de braço", "Peito", "Iniciante", "Mantenha tronco alinhado durante todo o movimento.", "", "peito", "", "peso-do-corpo")
+            insertExercise(db, "Puxada aberta", "Costas", "Intermediário", "Puxe com dorsais e evite elevar ombros.", "", "dorsais", "", "cabo")
             insertExercise(db, "Remada australiana", "Costas", "Iniciante", "Mantenha quadril firme e peito aberto.", "", "meio-das-costas", "", "peso-do-corpo")
-            insertExercise(db, "Agachamento livre", "Pernas", "Iniciante", "Desca mantendo joelhos alinhados aos pes.", "", "quadriceps", "", "peso-do-corpo")
-            insertExercise(db, "Afundo alternado", "Pernas", "Intermediario", "Controle a descida e suba sem impulso.", "", "quadriceps", "", "peso-do-corpo")
-            insertExercise(db, "Elevacao lateral", "Ombros", "Iniciante", "Suba ate a linha dos ombros sem impulso.", "", "ombros", "", "halteres")
+            insertExercise(db, "Agachamento livre", "Pernas", "Iniciante", "Desça mantendo joelhos alinhados aos pés.", "", "quadriceps", "", "peso-do-corpo")
+            insertExercise(db, "Afundo alternado", "Pernas", "Intermediário", "Controle a descida e suba sem impulso.", "", "quadriceps", "", "peso-do-corpo")
+            insertExercise(db, "Elevação lateral", "Ombros", "Iniciante", "Suba até a linha dos ombros sem impulso.", "", "ombros", "", "halteres")
         }
 
-        insertWorkout(db, "Push hipertrofia A", "Hipertrofia", "Intermediario", "60 min", true, false, null)
-        insertWorkout(db, "Lower forca", "Forca", "Avancado", "50 min", true, false, null)
+        insertWorkout(db, "Push hipertrofia A", "Hipertrofia", "Intermediário", "60 min", true, false, null)
+        insertWorkout(db, "Lower força", "Força", "Avançado", "50 min", true, false, null)
         insertWorkout(db, "Cardio HIIT", "Cardio", "Iniciante", "28 min", true, false, null)
         insertWorkout(db, "Mobilidade", "Mobilidade", "Iniciante", "20 min", true, false, null)
     }
@@ -580,9 +580,6 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     fun getCompletedDaysInMonth(year: Int, month: Int): Set<Int> {
         val completedDays = mutableSetOf<Int>()
-        if (year == 2026 && month == Calendar.JUNE) {
-            completedDays.addAll(listOf(4, 10, 17, 20))
-        }
         val cal = Calendar.getInstance()
         val sql = "SELECT completed_at FROM workout_history"
         readableDatabase.rawQuery(sql, null).use { cursor ->

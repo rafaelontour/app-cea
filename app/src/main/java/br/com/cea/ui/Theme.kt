@@ -19,13 +19,13 @@ object CeaColors {
 
 enum class Screen(val tab: String, val label: String) {
     ProfileSetup("none", "Info"),
-    Home("home", "Inicio"),
+    Home("home", "Início"),
     CreateWorkout("workouts", "Criar"),
     MyWorkouts("workouts", "Treinos"),
     Explore("workouts", "Explorar"),
-    Progress("progress", "Prog"),
-    Exercises("exercises", "Exer"),
-    Calendar("workouts", "Calendario"),
+    Progress("progress", "Progresso"),
+    Exercises("exercises", "Exercícios"),
+    Calendar("workouts", "Calendário"),
     Profile("profile", "Perfil"),
     ActiveWorkout("workouts", "Ativo")
 }

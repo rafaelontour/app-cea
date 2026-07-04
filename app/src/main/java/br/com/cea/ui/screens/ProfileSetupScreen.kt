@@ -5,10 +5,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.KeyboardType
 import br.com.cea.model.UserProfile
 
 @Composable
@@ -17,8 +19,8 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
     var age by remember { mutableStateOf(profile.age.toString()) }
     var weight by remember { mutableStateOf(profile.weightKg.toString()) }
     var height by remember { mutableStateOf(profile.heightCm.toString()) }
-    var objective by remember { mutableStateOf(profile.objective) }
-    var level by remember { mutableStateOf(profile.level) }
+    var objective by remember { mutableStateOf(profile.objective.normalizedObjective()) }
+    var level by remember { mutableStateOf(profile.level.normalizedLevel()) }
     var frequency by remember { mutableStateOf(profile.frequencyPerWeek.toString()) }
     var hours by remember { mutableStateOf(profile.hoursPerDay.toString()) }
 
@@ -28,33 +30,59 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(18.dp)
     ) {
-        Text("Configure seu Perfil", color = CeaColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        CeaBrandLockup(Modifier.fillMaxWidth())
         Spacer(Modifier.height(18.dp))
 
-        CeaInput("Nome", name) { name = it }
-        Spacer(Modifier.height(12.dp))
-        CeaInput("Idade", age, keyboardType = androidx.compose.ui.text.input.KeyboardType.Number) { age = it }
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CeaInput("Peso (kg)", weight, Modifier.weight(1f), androidx.compose.ui.text.input.KeyboardType.Number) { weight = it }
-            CeaInput("Altura (cm)", height, Modifier.weight(1f), androidx.compose.ui.text.input.KeyboardType.Number) { height = it }
+        CeaCard {
+            Text(
+                text = "Seu plano inicial está pronto",
+                color = CeaColors.Text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EntrySummaryPill("${frequency.ifBlank { "3" }}x/sem", Modifier.weight(1f))
+                EntrySummaryPill(objective, Modifier.weight(1f))
+                EntrySummaryPill(level, Modifier.weight(1f))
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        FieldLabel("Objetivo")
-        SelectableChips(listOf("Hipertrofia", "Forca", "Cardio"), objective) { objective = it }
-        Spacer(Modifier.height(14.dp))
-        FieldLabel("Nivel de treino")
-        SelectableChips(listOf("Iniciante", "Intermediario", "Avancado"), level) { level = it }
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CeaInput("Frequencia semanal (dias)", frequency, Modifier.weight(1f), androidx.compose.ui.text.input.KeyboardType.Number) { frequency = it }
-            CeaInput("Tempo diario (horas)", hours, Modifier.weight(1f), androidx.compose.ui.text.input.KeyboardType.Number) { hours = it }
+
+        Spacer(Modifier.height(16.dp))
+        SectionTitle("Dados pessoais")
+        Spacer(Modifier.height(8.dp))
+        CeaCard {
+            CeaInput("Nome", name) { name = it }
+            Spacer(Modifier.height(12.dp))
+            CeaInput("Idade", age, keyboardType = KeyboardType.Number) { age = it }
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CeaInput("Peso (kg)", weight, Modifier.weight(1f), KeyboardType.Number) { weight = it }
+                CeaInput("Altura (cm)", height, Modifier.weight(1f), KeyboardType.Number) { height = it }
+            }
         }
-        Spacer(Modifier.height(24.dp))
-        PrimaryAction("Salvar e Continuar", Modifier.fillMaxWidth()) {
+
+        Spacer(Modifier.height(16.dp))
+        SectionTitle("Preferências de treino")
+        Spacer(Modifier.height(8.dp))
+        CeaCard {
+            FieldLabel("Objetivo")
+            SelectableChips(listOf("Hipertrofia", "Força", "Cardio"), objective) { objective = it }
+            Spacer(Modifier.height(14.dp))
+            FieldLabel("Nível de treino")
+            SelectableChips(listOf("Iniciante", "Intermediário", "Avançado"), level) { level = it }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CeaInput("Frequência semanal", frequency, Modifier.weight(1f), KeyboardType.Number) { frequency = it }
+                CeaInput("Horas por dia", hours, Modifier.weight(1f), KeyboardType.Number) { hours = it }
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        PrimaryAction("Entrar no CEA", Modifier.fillMaxWidth()) {
             onSave(
                 profile.copy(
-                    name = name.ifBlank { "Usuario" },
+                    name = name.ifBlank { "Usuário" },
                     age = age.toIntOrNull() ?: 20,
                     weightKg = weight.toDoubleOrNull() ?: 70.0,
                     heightCm = height.toDoubleOrNull() ?: 175.0,
@@ -65,5 +93,39 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
                 )
             )
         }
+    }
+}
+
+@Composable
+private fun EntrySummaryPill(text: String, modifier: Modifier = Modifier) {
+    androidx.compose.material3.Surface(
+        modifier = modifier.heightIn(min = 34.dp),
+        color = CeaColors.CardAlt,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+            Text(
+                text = text,
+                color = CeaColors.Green,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+private fun String.normalizedObjective(): String {
+    return when (this) {
+        "Forca" -> "Força"
+        else -> ifBlank { "Hipertrofia" }
+    }
+}
+
+private fun String.normalizedLevel(): String {
+    return when (this) {
+        "Intermediario" -> "Intermediário"
+        "Avancado" -> "Avançado"
+        else -> ifBlank { "Iniciante" }
     }
 }

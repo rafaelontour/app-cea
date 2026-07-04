@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import br.com.cea.model.Exercise
 import br.com.cea.model.UserProfile
+import java.text.Normalizer
 
 @Composable
 fun ExercisesScreen(
@@ -26,20 +27,28 @@ fun ExercisesScreen(
     profile: UserProfile,
     exercises: List<Exercise>,
     selectedExercises: MutableList<Exercise>,
+    initialMuscleFilter: String = "",
+    onLevelIncrease: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
-    var muscle by remember { mutableStateOf("") }
+    var muscle by remember(initialMuscleFilter) { mutableStateOf(initialMuscleFilter) }
     var levelFilter by remember { mutableStateOf("") }
     var equipmentFilter by remember { mutableStateOf("") }
     var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var currentPage by remember(muscle, levelFilter, equipmentFilter, query) { mutableIntStateOf(0) }
 
+    LaunchedEffect(initialMuscleFilter) {
+        if (initialMuscleFilter.isNotBlank()) {
+            muscle = initialMuscleFilter
+        }
+    }
+
     val filtered = exercises.filter {
-        (muscle.isBlank() || it.muscleGroup == muscle) &&
-        (levelFilter.isBlank() || it.level == levelFilter) &&
-        (query.isBlank() || it.name.contains(query, ignoreCase = true)) &&
+        (muscle.isBlank() || it.muscleGroup.matchesFilter(muscle)) &&
+        (levelFilter.isBlank() || it.level.matchesFilter(levelFilter)) &&
+        (query.isBlank() || it.name.matchesFilter(query)) &&
         (equipmentFilter.isBlank() ||
             (equipmentFilter == "sem" && it.equipment == "peso-do-corpo") ||
             (equipmentFilter == "com" && it.equipment != "peso-do-corpo"))
@@ -68,7 +77,7 @@ fun ExercisesScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             CeaInput(
-                label = "Buscar exercicio",
+                label = "Buscar exercício",
                 value = query,
                 modifier = Modifier.weight(1f),
                 onValueChange = { query = it }
@@ -106,8 +115,15 @@ fun ExercisesScreen(
         Spacer(Modifier.height(14.dp))
         if (filtered.isEmpty()) {
             CeaCard {
-                Text("Nenhum exercicio encontrado", color = CeaColors.Text, fontWeight = FontWeight.Bold)
+                Text("Nenhum exercício encontrado", color = CeaColors.Text, fontWeight = FontWeight.Bold)
                 Text("Ajuste os filtros ou o termo de busca.", color = CeaColors.Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(12.dp))
+                PrimaryAction("Limpar filtros", Modifier.fillMaxWidth()) {
+                    query = ""
+                    muscle = ""
+                    levelFilter = ""
+                    equipmentFilter = ""
+                }
             }
         } else {
             displayList.forEachIndexed { index, exercise ->
@@ -170,6 +186,7 @@ fun ExercisesScreen(
             exercise = selectedExercise!!,
             selectedExercises = selectedExercises,
             profile = profile,
+            onLevelIncrease = onLevelIncrease,
             onDismiss = { selectedExercise = null }
         )
     }
@@ -279,7 +296,7 @@ fun FilterDialog(
                 Text("Nível de Dificuldade", color = CeaColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
 
-                val levels = listOf("Todos", "Iniciante", "Intermediario", "Avancado")
+                val levels = listOf("Todos", "Iniciante", "Intermediário", "Avançado")
                 levels.chunked(2).forEach { rowLevels ->
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -389,9 +406,13 @@ fun ExerciseDetailsDialog(
     exercise: Exercise,
     selectedExercises: MutableList<Exercise>,
     profile: UserProfile,
+    onLevelIncrease: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val isAlreadyAdded = selectedExercises.any { it.name == exercise.name }
+    val exerciseLevel = exercise.level.normalizedTrainingLevel()
+    val accountLevel = profile.level.normalizedTrainingLevel()
+    val willIncreaseAccountLevel = isTrainingLevelAbove(exerciseLevel, accountLevel)
     var showConfirmDialog by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -436,7 +457,7 @@ fun ExerciseDetailsDialog(
                             selectedExercises.removeAll { it.name == exercise.name }
                             onDismiss()
                         } else {
-                            if (profile.level == "Iniciante" && exercise.level != "Iniciante") {
+                            if (willIncreaseAccountLevel) {
                                 showConfirmDialog = true
                             } else {
                                 selectedExercises.add(exercise)
@@ -471,7 +492,7 @@ fun ExerciseDetailsDialog(
                         },
                         text = {
                             Text(
-                                text = "Você selecionou o nível 'Iniciante' no seu perfil, mas este exercício é de nível '${exercise.level}'. Tem certeza que deseja adicioná-lo ao seu treino?",
+                                text = "Este exercício é nível $exerciseLevel, acima do nível da sua conta ($accountLevel). Ao confirmar, o nível da conta será atualizado para $exerciseLevel.",
                                 color = CeaColors.Muted,
                                 fontSize = 14.sp
                             )
@@ -480,6 +501,7 @@ fun ExerciseDetailsDialog(
                             TextButton(
                                 onClick = {
                                     selectedExercises.add(exercise)
+                                    onLevelIncrease(exerciseLevel)
                                     showConfirmDialog = false
                                     onDismiss()
                                 }
@@ -562,4 +584,36 @@ fun ExerciseDetailsDialog(
             }
         }
     }
+}
+
+private fun String.matchesFilter(query: String): Boolean {
+    return normalizeForSearch().contains(query.normalizeForSearch())
+}
+
+private fun String.normalizeForSearch(): String {
+    val normalized = Normalizer.normalize(repairMojibake(), Normalizer.Form.NFD)
+    return normalized
+        .replace(Regex("\\p{Mn}+"), "")
+        .lowercase()
+        .trim()
+}
+
+private fun String.repairMojibake(): String {
+    return replace("Ã¡", "á")
+        .replace("Ã ", "à")
+        .replace("Ã¢", "â")
+        .replace("Ã£", "ã")
+        .replace("Ã©", "é")
+        .replace("Ãª", "ê")
+        .replace("Ã­", "í")
+        .replace("Ã³", "ó")
+        .replace("Ã´", "ô")
+        .replace("Ãµ", "õ")
+        .replace("Ãº", "ú")
+        .replace("Ã§", "ç")
+        .replace("Ã", "Á")
+        .replace("Ã‰", "É")
+        .replace("Ã“", "Ó")
+        .replace("Ãš", "Ú")
+        .replace("Ã‡", "Ç")
 }

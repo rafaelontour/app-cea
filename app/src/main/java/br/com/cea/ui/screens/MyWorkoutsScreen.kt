@@ -1,10 +1,10 @@
 package br.com.cea.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.cea.model.Workout
@@ -21,6 +21,7 @@ fun MyWorkoutsScreen(
 ) {
     val predefined = remember(workouts) { workouts.filter { it.publicWorkout } }
     val myWorkouts = remember(workouts) { workouts.filter { !it.publicWorkout } }
+    var workoutToDelete by remember { mutableStateOf<Workout?>(null) }
 
     Column(modifier) {
         Row(
@@ -33,12 +34,22 @@ fun MyWorkoutsScreen(
         }
         Spacer(Modifier.height(10.dp))
         if (myWorkouts.isEmpty()) {
-            Text(
-                text = "Nenhum treino criado ainda. Clique em Novo para criar um!",
-                color = CeaColors.Muted,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            CeaCard {
+                Text(
+                    text = "Nenhum treino criado ainda.",
+                    color = CeaColors.Text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Monte um treino próprio ou importe um plano pronto para começar.",
+                    color = CeaColors.Muted,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(12.dp))
+                PrimaryAction("Criar primeiro treino", Modifier.fillMaxWidth(), onClick = onNew)
+            }
         } else {
             myWorkouts.forEach { workout ->
                 val origin = if (workout.imported && workout.origin != null) " - Importado de ${workout.origin}" else ""
@@ -49,7 +60,7 @@ fun MyWorkoutsScreen(
                     onStart = { onStart(workout) },
                     onEdit = { onEdit(workout) },
                     onDuplicate = { onDuplicate(workout) },
-                    onDelete = { onDelete(workout) }
+                    onDelete = { workoutToDelete = workout }
                 )
                 Spacer(Modifier.height(10.dp))
             }
@@ -74,10 +85,42 @@ fun MyWorkoutsScreen(
                     onStart = { onStart(workout) },
                     onEdit = { onEdit(workout) },
                     onDuplicate = { onDuplicate(workout) },
-                    onDelete = { onDelete(workout) }
+                    onDelete = { workoutToDelete = workout }
                 )
                 Spacer(Modifier.height(10.dp))
             }
         }
+    }
+
+    val pendingDelete = workoutToDelete
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { workoutToDelete = null },
+            title = {
+                Text("Excluir treino", color = CeaColors.Text, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Excluir \"${pendingDelete.title}\"? Esta ação não pode ser desfeita.",
+                    color = CeaColors.Muted
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete(pendingDelete)
+                        workoutToDelete = null
+                    }
+                ) {
+                    Text("Excluir", color = CeaColors.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { workoutToDelete = null }) {
+                    Text("Cancelar", color = CeaColors.Text, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = CeaColors.Card
+        )
     }
 }

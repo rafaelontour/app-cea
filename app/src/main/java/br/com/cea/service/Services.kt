@@ -21,7 +21,7 @@ class BmiService {
     }
 
     fun classify(bmi: Double): String = when {
-        bmi <= 0 -> "Dados invalidos"
+        bmi <= 0 -> "Dados inválidos"
         bmi < 18.5 -> "Abaixo do peso"
         bmi < 25 -> "Peso normal"
         bmi < 30 -> "Sobrepeso"
@@ -34,10 +34,10 @@ class BmiService {
 class WorkoutRecommendationService {
     fun recommend(profile: UserProfile): Workout {
         val title = when (profile.objective) {
-            "Forca" -> "Upper body forca"
+            "Força", "Forca" -> "Upper body força"
             "Cardio", "Emagrecimento" -> "Cardio HIIT"
-            "Mobilidade" -> "Mobilidade e resistencia"
-            else -> if (profile.level == "Iniciante") "Full body metabolico" else "Push hipertrofia A"
+            "Mobilidade" -> "Mobilidade e resistência"
+            else -> if (profile.level == "Iniciante") "Full body metabólico" else "Push hipertrofia A"
         }
 
         return Workout(
@@ -47,10 +47,10 @@ class WorkoutRecommendationService {
             duration = "${maxOf(30, (profile.hoursPerDay * 60).toInt())} min",
             publicWorkout = true,
             exercises = listOf(
-                "Supino reto - 4 series - 8/10 reps",
-                "Crucifixo inclinado - 3 series - 12 reps",
-                "Flexao de braco - 3 series - ate a falha",
-                "Agachamento livre - 4 series - 10 reps"
+                "Supino reto - 4 séries - 8/10 reps",
+                "Crucifixo inclinado - 3 séries - 12 reps",
+                "Flexão de braço - 3 séries - até a falha",
+                "Agachamento livre - 4 séries - 10 reps"
             )
         )
     }

@@ -2,6 +2,7 @@ package br.com.cea.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -19,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.cea.R
 import br.com.cea.model.DayState
 import br.com.cea.model.Exercise
 
@@ -107,11 +111,42 @@ fun SectionTitle(text: String) {
 }
 
 @Composable
-fun PrimaryAction(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun CeaLogoMark(modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(id = R.drawable.cea_logo),
+        contentDescription = "Logo CEA",
+        contentScale = ContentScale.Crop,
+        modifier = modifier.clip(RoundedCornerShape(14.dp))
+    )
+}
+
+@Composable
+fun CeaBrandLockup(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CeaLogoMark(Modifier.size(58.dp))
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text("CEA", color = CeaColors.Text, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Calisthenics Exercise Analysis", color = CeaColors.Muted, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+fun PrimaryAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.heightIn(min = 46.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = CeaColors.Green, contentColor = Color.Black),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = CeaColors.Green,
+            contentColor = Color.Black,
+            disabledContainerColor = CeaColors.CardAlt,
+            disabledContentColor = CeaColors.Muted
+        ),
         shape = RoundedCornerShape(9.dp),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
     ) {
@@ -388,15 +423,27 @@ fun String.firstName(): String {
     return trim().split(" ").firstOrNull().orEmpty().ifBlank { "Nome" }
 }
 
+fun String.normalizedTrainingLevel(): String {
+    return when (trim()) {
+        "Intermediario", "IntermediÃ¡rio", "Intermediário" -> "Intermediário"
+        "Avancado", "AvanÃ§ado", "Avançado" -> "Avançado"
+        else -> "Iniciante"
+    }
+}
+
+fun trainingLevelRank(level: String): Int {
+    return when (level.normalizedTrainingLevel()) {
+        "Intermediário" -> 2
+        "Avançado" -> 3
+        else -> 1
+    }
+}
+
+fun isTrainingLevelAbove(candidate: String, current: String): Boolean {
+    return trainingLevelRank(candidate) > trainingLevelRank(current)
+}
+
 @Composable
 fun Avatar() {
-    Box(
-        modifier = Modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(CeaColors.CardAlt),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("CB", color = CeaColors.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    }
+    CeaLogoMark(Modifier.size(38.dp))
 }

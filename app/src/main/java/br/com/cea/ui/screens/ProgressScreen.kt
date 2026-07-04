@@ -42,9 +42,9 @@ fun ProgressScreen(
     Column(modifier) {
         val completedCount = remember(profile) { database.getCompletedWorkoutsCount() }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard((18 + completedCount).toString(), "Concluidos", Modifier.weight(1f))
+            MetricCard((18 + completedCount).toString(), "Concluídos", Modifier.weight(1f))
             MetricCard("24", "Dias ativos", Modifier.weight(1f))
-            MetricCard("7", "Sequencia", Modifier.weight(1f))
+            MetricCard("7", "Sequência", Modifier.weight(1f))
         }
         Spacer(Modifier.height(16.dp))
 
@@ -84,7 +84,7 @@ fun ProgressScreen(
 
         if (history.isNotEmpty()) {
             CeaCard {
-                SectionTitle("Evolucao do peso")
+                SectionTitle("Evolução do peso")
                 Spacer(Modifier.height(12.dp))
                 WeightProgressionChart(history)
             }
@@ -92,7 +92,7 @@ fun ProgressScreen(
         }
 
         CeaCard {
-            SectionTitle("Frequencia semanal")
+            SectionTitle("Frequência semanal")
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier
@@ -116,7 +116,7 @@ fun ProgressScreen(
         }
         Spacer(Modifier.height(14.dp))
         CeaCard {
-            SectionTitle("Evolucao corporal")
+            SectionTitle("Evolução corporal")
             Text("IMC: ${"%.1f".format(bmi)} - ${bmiService.classify(bmi)}", color = CeaColors.Muted, fontSize = 12.sp)
             Text(
                 text = LocalContext.current.getString(R.string.bmi_warning),

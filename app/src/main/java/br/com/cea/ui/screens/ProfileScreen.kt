@@ -45,20 +45,20 @@ fun ProfileScreen(
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard((18 + completedCount).toString(), "Concluidos", Modifier.weight(1f))
+            MetricCard((18 + completedCount).toString(), "Concluídos", Modifier.weight(1f))
             MetricCard("24", "Dias ativos", Modifier.weight(1f))
             MetricCard("12h40", "Tempo total", Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("7 dias", "Sequencia", Modifier.weight(1f))
+            MetricCard("7 dias", "Sequência", Modifier.weight(1f))
             MetricCard(profile.objective, "Mais treinado", Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
         ProfileCalendarCard(database)
         Spacer(Modifier.height(18.dp))
         CeaCard {
-            SectionTitle("Hidratacao")
+            SectionTitle("Hidratação")
             Text("$waterMl ml de 2500 ml", color = CeaColors.Muted, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
@@ -68,10 +68,10 @@ fun ProfileScreen(
                 trackColor = CeaColors.CardAlt
             )
             Spacer(Modifier.height(12.dp))
-            PrimaryAction("+ 250 ml", Modifier.fillMaxWidth(), onWater)
+            PrimaryAction("+ 250 ml", Modifier.fillMaxWidth(), onClick = onWater)
         }
         Spacer(Modifier.height(18.dp))
-        SectionTitle("Historico recente")
+        SectionTitle("Histórico recente")
         Spacer(Modifier.height(8.dp))
         if (workoutHistory.isEmpty()) {
             Text(
@@ -108,8 +108,6 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
 
     val calendar = remember(currentMonthOffset) {
         Calendar.getInstance().apply {
-            set(Calendar.YEAR, 2026)
-            set(Calendar.MONTH, Calendar.JUNE)
             add(Calendar.MONTH, currentMonthOffset)
             set(Calendar.DAY_OF_MONTH, 1)
         }
@@ -154,7 +152,7 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                SectionTitle("Frequencia de treinos")
+                SectionTitle("Frequência de treinos")
                 Spacer(Modifier.height(2.dp))
                 Text("$monthName $year", color = CeaColors.Muted, fontSize = 11.sp)
             }
@@ -200,8 +198,6 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
                     if (day != null) {
                         val state = when {
                             day in completedDays -> DayState.Completed
-                            day == 8 -> DayState.Missed
-                            day in listOf(12, 24) -> DayState.Scheduled
                             else -> DayState.Empty
                         }
                         CalendarCell(day, state)
@@ -219,7 +215,7 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusPill("Concluido", CeaColors.Green)
+            StatusPill("Concluído", CeaColors.Green)
             StatusPill("Agendado", CeaColors.Blue)
             StatusPill("Perdido", CeaColors.Red)
         }

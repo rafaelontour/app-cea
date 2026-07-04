@@ -334,7 +334,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                             muscleGroup = cursor.getString(cursor.getColumnIndexOrThrow("muscle_group")),
                             level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
                             instructions = cursor.getString(cursor.getColumnIndexOrThrow("instructions")),
-                            imageUri = cursor.getString(cursor.getColumnIndexOrThrow("image_uri")),
+                            imageUri = assetImageUri(cursor.getString(cursor.getColumnIndexOrThrow("image_uri"))),
                             primaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("primary_muscles")),
                             secondaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("secondary_muscles")),
                             equipment = cursor.getString(cursor.getColumnIndexOrThrow("equipment")) ?: ""
@@ -427,7 +427,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                     }
                 }
                 val instructions = instructionsBuilder.toString()
-                val imageUri = jsonObject.optJSONArray("images")?.optString(0) ?: ""
+                val imagePath = jsonObject.optJSONArray("images")?.optString(0) ?: ""
+                val imageUri = assetImageUri(imagePath)
                 val equipment = jsonObject.optString("equipment", "peso-do-corpo")
 
                 insertExercise(db, name, muscleGroup, level, instructions, imageUri, primaryMusclesStr, secondaryMusclesStr, equipment)
@@ -466,6 +467,14 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 put("equipment", equipment)
             }
         )
+    }
+
+    private fun assetImageUri(path: String): String {
+        return when {
+            path.isBlank() -> ""
+            path.startsWith("images/") -> path
+            else -> "images/$path"
+        }
     }
 
     private fun insertWorkout(

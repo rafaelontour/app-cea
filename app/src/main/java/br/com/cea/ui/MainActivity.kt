@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -40,6 +41,7 @@ import br.com.cea.model.Exercise
 import br.com.cea.model.Workout
 import br.com.cea.service.AnalyticsTracker
 import br.com.cea.service.BmiService
+import br.com.cea.service.ExerciseImageClient
 import br.com.cea.service.HydrationReminderReceiver
 import br.com.cea.service.WorkoutRecommendationService
 
@@ -100,6 +102,7 @@ private fun CeaApp(activity: MainActivity) {
     var editingWorkoutId by remember { mutableStateOf<Long?>(null) }
     var activeWorkout by remember { mutableStateOf<Workout?>(null) }
     var exerciseMuscleFilter by remember { mutableStateOf("") }
+    val imageBackendUrl = ExerciseImageClient.DEFAULT_BASE_URL
 
     LaunchedEffect(screen, refresh) {
         profile = database.getProfile()
@@ -158,12 +161,28 @@ private fun CeaApp(activity: MainActivity) {
         when (screen) {
             Screen.Home -> HomeScreen(
                 modifier = modifier,
+                nextScheduledWorkout = database.getUpcomingScheduledWorkouts(1).firstOrNull(),
+                waterMl = database.getTodayWaterMl(),
+                weekWorkoutCounts = database.getCurrentWeekWorkoutCounts(),
                 onCreateWorkout = { screen = Screen.CreateWorkout },
                 onMyWorkouts = { screen = Screen.MyWorkouts },
-                onExplore = { screen = Screen.Explore },
-                onExercises = {
-                    exerciseMuscleFilter = ""
-                    screen = Screen.Exercises
+                onStartWorkout = { workoutId ->
+                    val workout = database.getWorkout(workoutId)
+                    if (workout != null) {
+                        activeWorkout = workout
+                        screen = Screen.ActiveWorkout
+                    } else {
+                        screen = Screen.MyWorkouts
+                    }
+                },
+                onWater = {
+                    activity.requestNotificationPermission()
+                    database.logWater(250)
+                    analytics.track(context, "water_logged")
+                    refresh++
+                },
+                onProgress = {
+                    screen = Screen.Progress
                 }
             )
             Screen.CreateWorkout -> CreateWorkoutScreen(
@@ -220,6 +239,11 @@ private fun CeaApp(activity: MainActivity) {
                 onDelete = { workout ->
                     database.deleteWorkout(workout.id)
                     refresh++
+                },
+                onImport = { workout ->
+                    database.importWorkout(workout, profile.name.ifBlank { "UsuÃ¡rio" })
+                    analytics.track(context, "workout_imported")
+                    refresh++
                 }
             )
             Screen.Explore -> ExploreScreen(
@@ -247,6 +271,7 @@ private fun CeaApp(activity: MainActivity) {
                 profile = profile,
                 exercises = database.listExercises(),
                 selectedExercises = selectedExercises,
+                imageBackendUrl = imageBackendUrl,
                 initialMuscleFilter = exerciseMuscleFilter,
                 onLevelIncrease = { newLevel ->
                     promoteProfileLevelIfNeeded(newLevel)
@@ -267,6 +292,7 @@ private fun CeaApp(activity: MainActivity) {
                         modifier = modifier,
                         workout = workout,
                         database = database,
+                        imageBackendUrl = imageBackendUrl,
                         onFinished = {
                             screen = Screen.MyWorkouts
                             activeWorkout = null
@@ -359,13 +385,13 @@ private fun AppShell(
     }
 }
 
-private fun navItems() = listOf(Screen.Home, Screen.MyWorkouts, Screen.Calendar, Screen.Progress, Screen.Exercises, Screen.Profile)
+private fun navItems() = listOf(Screen.Home, Screen.MyWorkouts, Screen.Calendar, Screen.Progress, Screen.Profile)
 
 private fun Screen.icon(): ImageVector {
     return when (this) {
         Screen.Home -> Icons.Filled.Home
         Screen.MyWorkouts -> Icons.Filled.ViewList
-        Screen.Calendar -> Icons.Filled.ViewList
+        Screen.Calendar -> Icons.Filled.DateRange
         Screen.Progress -> Icons.Filled.ShowChart
         Screen.Exercises -> Icons.Filled.FitnessCenter
         Screen.Profile -> Icons.Filled.Person

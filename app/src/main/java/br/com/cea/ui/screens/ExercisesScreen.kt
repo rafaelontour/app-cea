@@ -35,6 +35,7 @@ fun ExercisesScreen(
     profile: UserProfile,
     exercises: List<Exercise>,
     selectedExercises: MutableList<Exercise>,
+    imageBackendUrl: String,
     initialMuscleFilter: String = "",
     onLevelIncrease: (String) -> Unit = {},
     onBack: () -> Unit
@@ -120,6 +121,33 @@ fun ExercisesScreen(
             }
         }
 
+        if (selectedExercises.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            CeaCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "${selectedExercises.size} selecionado(s)",
+                            color = CeaColors.Text,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = selectedExercises.take(2).joinToString(", ") { it.name },
+                            color = CeaColors.Muted,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                    SmallAction("Concluir", onClick = onBack)
+                }
+            }
+        }
+
         Spacer(Modifier.height(14.dp))
         if (filtered.isEmpty()) {
             CeaCard {
@@ -194,6 +222,7 @@ fun ExercisesScreen(
             exercise = selectedExercise!!,
             selectedExercises = selectedExercises,
             profile = profile,
+            imageBackendUrl = imageBackendUrl,
             onLevelIncrease = onLevelIncrease,
             onDismiss = { selectedExercise = null }
         )
@@ -414,6 +443,7 @@ fun ExerciseDetailsDialog(
     exercise: Exercise,
     selectedExercises: MutableList<Exercise>,
     profile: UserProfile,
+    imageBackendUrl: String,
     onLevelIncrease: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -460,7 +490,7 @@ fun ExerciseDetailsDialog(
                 }
                 Spacer(Modifier.height(16.dp))
 
-                ExerciseImageCarousel(imageUris = imageUris)
+                ExerciseImageCarousel(imageUris = imageUris, imageBackendUrl = imageBackendUrl)
                 Spacer(Modifier.height(16.dp))
 
                 Button(
@@ -600,12 +630,13 @@ fun ExerciseDetailsDialog(
 
 @Composable
 private fun ExerciseImageCarousel(
-    imageUris: List<String>
+    imageUris: List<String>,
+    imageBackendUrl: String
 ) {
-    val imageClient = remember { ExerciseImageClient() }
+    val imageClient = remember(imageBackendUrl) { ExerciseImageClient(imageBackendUrl) }
     var currentIndex by remember(imageUris) { mutableIntStateOf(0) }
-    var bitmap by remember(imageUris, currentIndex) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var isLoading by remember(imageUris, currentIndex) { mutableStateOf(imageUris.isNotEmpty()) }
+    var bitmap by remember(imageUris, currentIndex, imageBackendUrl) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var isLoading by remember(imageUris, currentIndex, imageBackendUrl) { mutableStateOf(imageUris.isNotEmpty()) }
     var dragDistance by remember { mutableFloatStateOf(0f) }
 
     fun previousImage() {
@@ -620,7 +651,7 @@ private fun ExerciseImageCarousel(
         }
     }
 
-    LaunchedEffect(imageUris, currentIndex) {
+    LaunchedEffect(imageUris, currentIndex, imageBackendUrl) {
         bitmap = null
         isLoading = imageUris.isNotEmpty()
         if (imageUris.isNotEmpty()) {

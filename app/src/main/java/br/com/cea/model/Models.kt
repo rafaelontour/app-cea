@@ -56,6 +56,12 @@ data class ScheduledWorkout(
     val scheduledAt: Long
 )
 
+data class WorkoutHistoryEntry(
+    val title: String,
+    val completedAt: Long,
+    val durationSeconds: Int
+)
+
 data class CalendarDay(
     val day: Int,
     val state: DayState = DayState.Empty

@@ -49,20 +49,20 @@ fun ProfileScreen(
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard(completedCount.toString(), "Concluídos", Modifier.weight(1f))
+            MetricCard(completedCount.toString(), "Concluidos", Modifier.weight(1f))
             MetricCard(activeDays.toString(), "Dias ativos", Modifier.weight(1f))
             MetricCard(formatWorkoutDuration(totalDurationSeconds), "Tempo total", Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard(formatDays(streakDays), "Sequência", Modifier.weight(1f))
+            MetricCard(formatDays(streakDays), "Sequencia", Modifier.weight(1f))
             MetricCard(mostTrainedObjective, "Mais treinado", Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
         ProfileCalendarCard(database)
         Spacer(Modifier.height(18.dp))
         CeaCard {
-            SectionTitle("Hidratação")
+            SectionTitle("Hidratacao")
             Text("$waterMl ml de 2500 ml", color = CeaColors.Muted, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
@@ -75,31 +75,32 @@ fun ProfileScreen(
             PrimaryAction("+ 250 ml", Modifier.fillMaxWidth(), onClick = onWater)
         }
         Spacer(Modifier.height(18.dp))
-        SectionTitle("Histórico recente")
+        SectionTitle("Historico recente")
         Spacer(Modifier.height(8.dp))
         if (workoutHistory.isEmpty()) {
             Text(
-                text = "Nenhum treino concluído recentemente.",
+                text = "Nenhum treino concluido recentemente.",
                 color = CeaColors.Muted,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         } else {
-            workoutHistory.take(5).forEach { (title, timestamp) ->
+            workoutHistory.take(5).forEach { entry ->
+                val timestamp = entry.completedAt
                 val timeLabel = remember(timestamp) {
                     val diff = System.currentTimeMillis() - timestamp
                     val days = (diff / (1000 * 60 * 60 * 24)).toInt()
                     when {
                         days == 0 -> "Hoje"
                         days == 1 -> "Ontem"
-                        days < 7 -> "$days dias atrás"
+                        days < 7 -> "$days dias atras"
                         else -> {
                             val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
                             sdf.format(java.util.Date(timestamp))
                         }
                     }
                 }
-                WorkoutRow(title, "$timeLabel - 30 min", "OK", onProgress)
+                WorkoutRow(entry.title, "$timeLabel - ${formatWorkoutDuration(entry.durationSeconds)}", "OK", onProgress)
                 Spacer(Modifier.height(8.dp))
             }
         }
@@ -176,7 +177,7 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                SectionTitle("Frequência de treinos")
+                SectionTitle("Frequencia de treinos")
                 Spacer(Modifier.height(2.dp))
                 Text("$monthName $year", color = CeaColors.Muted, fontSize = 11.sp)
             }
@@ -241,7 +242,7 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusPill("Concluído", CeaColors.Green)
+            StatusPill("Concluido", CeaColors.Green)
             StatusPill("Agendado", CeaColors.Blue)
             StatusPill("Perdido", CeaColors.Red)
         }

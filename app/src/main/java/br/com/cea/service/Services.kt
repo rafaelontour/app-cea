@@ -1,6 +1,8 @@
 package br.com.cea.service
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import br.com.cea.model.UserProfile
@@ -83,5 +85,36 @@ class ApiClient(private val baseUrl: String) {
             }
         }
         return JSONObject(response.toString())
+    }
+}
+
+class ExerciseImageClient(
+    private val baseUrl: String = DEFAULT_BASE_URL
+) {
+    fun loadBitmap(imageUri: String): Bitmap? {
+        if (imageUri.isBlank()) return null
+
+        val imagePath = imageUri.removePrefix("images/").trimStart('/')
+        return try {
+            val connection = (URL("${baseUrl.trimEnd('/')}/exercise-image/$imagePath").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5_000
+                readTimeout = 10_000
+            }
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+            try {
+                connection.inputStream.use { input ->
+                    BitmapFactory.decodeStream(input)
+                }
+            } finally {
+                connection.disconnect()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    companion object {
+        private const val DEFAULT_BASE_URL = "http://10.0.2.2:8080"
     }
 }

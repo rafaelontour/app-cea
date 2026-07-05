@@ -1,7 +1,9 @@
 package br.com.cea.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,6 +24,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import br.com.cea.model.Exercise
 import br.com.cea.model.UserProfile
+import br.com.cea.service.ExerciseImageClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.Normalizer
 
 @Composable
@@ -414,6 +422,7 @@ fun ExerciseDetailsDialog(
     val accountLevel = profile.level.normalizedTrainingLevel()
     val willIncreaseAccountLevel = isTrainingLevelAbove(exerciseLevel, accountLevel)
     var showConfirmDialog by remember { mutableStateOf(false) }
+    val imageUris = remember(exercise.imageUri) { carouselImageUris(exercise.imageUri) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -449,6 +458,9 @@ fun ExerciseDetailsDialog(
                     StatusPill(exercise.muscleGroup, CeaColors.Blue)
                     StatusPill(exercise.level, CeaColors.Green)
                 }
+                Spacer(Modifier.height(16.dp))
+
+                ExerciseImageCarousel(imageUris = imageUris)
                 Spacer(Modifier.height(16.dp))
 
                 Button(
@@ -584,6 +596,145 @@ fun ExerciseDetailsDialog(
             }
         }
     }
+}
+
+@Composable
+private fun ExerciseImageCarousel(
+    imageUris: List<String>
+) {
+    val imageClient = remember { ExerciseImageClient() }
+    var currentIndex by remember(imageUris) { mutableIntStateOf(0) }
+    var bitmap by remember(imageUris, currentIndex) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var isLoading by remember(imageUris, currentIndex) { mutableStateOf(imageUris.isNotEmpty()) }
+    var dragDistance by remember { mutableFloatStateOf(0f) }
+
+    fun previousImage() {
+        if (imageUris.size > 1) {
+            currentIndex = if (currentIndex == 0) imageUris.lastIndex else currentIndex - 1
+        }
+    }
+
+    fun nextImage() {
+        if (imageUris.size > 1) {
+            currentIndex = if (currentIndex == imageUris.lastIndex) 0 else currentIndex + 1
+        }
+    }
+
+    LaunchedEffect(imageUris, currentIndex) {
+        bitmap = null
+        isLoading = imageUris.isNotEmpty()
+        if (imageUris.isNotEmpty()) {
+            bitmap = withContext(Dispatchers.IO) {
+                imageClient.loadBitmap(imageUris[currentIndex])
+            }
+        }
+        isLoading = false
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(190.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(CeaColors.Black)
+            .pointerInput(imageUris, currentIndex) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragDistance = 0f },
+                    onHorizontalDrag = { _, dragAmount ->
+                        dragDistance += dragAmount
+                    },
+                    onDragEnd = {
+                        when {
+                            dragDistance > 48f -> previousImage()
+                            dragDistance < -48f -> nextImage()
+                        }
+                        dragDistance = 0f
+                    },
+                    onDragCancel = { dragDistance = 0f }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        val loadedBitmap = bitmap
+        when {
+            loadedBitmap != null -> {
+                Image(
+                    bitmap = loadedBitmap.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            isLoading -> {
+                CircularProgressIndicator(color = CeaColors.Green)
+            }
+            imageUris.isNotEmpty() -> {
+                Text("Imagem indisponível", color = CeaColors.Muted, fontSize = 12.sp)
+            }
+            else -> {
+                Text("Sem imagem", color = CeaColors.Muted, fontSize = 12.sp)
+            }
+        }
+
+        if (imageUris.size > 1) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ImageNavButton(text = "<", onClick = { previousImage() })
+                ImageNavButton(text = ">", onClick = { nextImage() })
+            }
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp),
+                color = CeaColors.Card.copy(alpha = 0.86f),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text(
+                    text = "${currentIndex + 1} / ${imageUris.size}",
+                    color = CeaColors.Text,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageNavButton(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.size(38.dp),
+        contentPadding = PaddingValues(0.dp),
+        shape = RoundedCornerShape(999.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = CeaColors.Card.copy(alpha = 0.88f),
+            contentColor = CeaColors.Green
+        )
+    ) {
+        Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun carouselImageUris(imageUri: String): List<String> {
+    val imageUris = imageUri
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+
+    if (imageUris.size != 1 || !imageUris.first().endsWith("/0.jpg")) {
+        return imageUris
+    }
+
+    return imageUris + (imageUris.first().removeSuffix("/0.jpg") + "/1.jpg")
 }
 
 private fun String.matchesFilter(query: String): Boolean {

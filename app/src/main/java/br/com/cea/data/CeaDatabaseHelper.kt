@@ -334,7 +334,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                             muscleGroup = cursor.getString(cursor.getColumnIndexOrThrow("muscle_group")),
                             level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
                             instructions = cursor.getString(cursor.getColumnIndexOrThrow("instructions")),
-                            imageUri = assetImageUri(cursor.getString(cursor.getColumnIndexOrThrow("image_uri"))),
+                            imageUri = assetImageUris(cursor.getString(cursor.getColumnIndexOrThrow("image_uri"))),
                             primaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("primary_muscles")),
                             secondaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("secondary_muscles")),
                             equipment = cursor.getString(cursor.getColumnIndexOrThrow("equipment")) ?: ""
@@ -427,8 +427,14 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                     }
                 }
                 val instructions = instructionsBuilder.toString()
-                val imagePath = jsonObject.optJSONArray("images")?.optString(0) ?: ""
-                val imageUri = assetImageUri(imagePath)
+                val imagesArray = jsonObject.optJSONArray("images")
+                val imageUri = buildList {
+                    if (imagesArray != null) {
+                        for (idx in 0 until imagesArray.length()) {
+                            add(assetImageUris(imagesArray.optString(idx)))
+                        }
+                    }
+                }.filter { it.isNotBlank() }.joinToString(",")
                 val equipment = jsonObject.optString("equipment", "peso-do-corpo")
 
                 insertExercise(db, name, muscleGroup, level, instructions, imageUri, primaryMusclesStr, secondaryMusclesStr, equipment)
@@ -469,12 +475,19 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         )
     }
 
-    private fun assetImageUri(path: String): String {
-        return when {
-            path.isBlank() -> ""
-            path.startsWith("images/") -> path
-            else -> "images/$path"
-        }
+    private fun assetImageUris(path: String): String {
+        return path
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .map { imagePath ->
+                when {
+                    imagePath.startsWith("images/") -> imagePath
+                    else -> "images/$imagePath"
+                }
+            }
+            .distinct()
+            .joinToString(",")
     }
 
     private fun insertWorkout(

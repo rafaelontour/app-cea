@@ -6,12 +6,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.cea.data.CeaDatabaseHelper
 import br.com.cea.model.Exercise
 import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
+import br.com.cea.model.WorkoutExerciseSpec
 
 @Composable
 fun CreateWorkoutScreen(
@@ -27,22 +29,50 @@ fun CreateWorkoutScreen(
         editingWorkoutId?.let { database.getWorkout(it) }
     }
 
-    var name by remember(editingWorkout) { mutableStateOf(editingWorkout?.title ?: "Push hipertrofia A") }
-    var objective by remember(editingWorkout) { mutableStateOf(editingWorkout?.objective ?: profile.objective) }
-    var level by remember(editingWorkout) { mutableStateOf(editingWorkout?.level ?: profile.level) }
-    var duration by remember(editingWorkout) { mutableStateOf(editingWorkout?.duration ?: "60 min") }
+    var name by remember(editingWorkout) { mutableStateOf(editingWorkout?.title ?: "") }
+    var objective by remember(editingWorkout) { mutableStateOf(editingWorkout?.objective ?: profile.objective.ifBlank { "Hipertrofia" }) }
+    var level by remember(editingWorkout) { mutableStateOf((editingWorkout?.level ?: profile.level).normalizedTrainingLevel()) }
+    var duration by remember(editingWorkout) { mutableStateOf(editingWorkout?.duration ?: "30 min") }
     var muscle by remember { mutableStateOf("Peito") }
     var exerciseToRemove by remember { mutableStateOf<Exercise?>(null) }
     var showLevelIncreaseDialog by remember { mutableStateOf(false) }
+    val prescriptionInputs = remember(editingWorkout) {
+        mutableStateMapOf<String, ExercisePrescriptionInput>().apply {
+            editingWorkout?.exerciseSpecs?.forEach { spec ->
+                put(
+                    spec.name,
+                    ExercisePrescriptionInput(
+                        sets = spec.sets.toString(),
+                        reps = spec.reps,
+                        restSeconds = spec.restSeconds.toString()
+                    )
+                )
+            }
+        }
+    }
+
+    selectedExercises.forEach { exercise ->
+        prescriptionInputs.getOrPut(exercise.name) { ExercisePrescriptionInput() }
+    }
 
     fun buildWorkout(): Workout {
+        val specs = selectedExercises.map { exercise ->
+            val input = prescriptionInputs[exercise.name] ?: ExercisePrescriptionInput()
+            WorkoutExerciseSpec(
+                name = exercise.name,
+                sets = input.sets.toIntOrNull()?.coerceAtLeast(1) ?: 3,
+                reps = input.reps.ifBlank { "10" },
+                restSeconds = input.restSeconds.toIntOrNull()?.coerceAtLeast(0) ?: 60
+            )
+        }
         return Workout(
             title = name.ifBlank { "Meu Treino" },
             objective = objective,
             level = level.normalizedTrainingLevel(),
             duration = duration,
             publicWorkout = false,
-            exercises = selectedExercises.map { it.name }
+            exercises = specs.map { it.name },
+            exerciseSpecs = specs
         )
     }
 
@@ -94,7 +124,9 @@ fun CreateWorkoutScreen(
                         selectedExercises.removeAt(index)
                         selectedExercises.add(index + 1, exercise)
                     },
-                    onRemove = { exerciseToRemove = exercise }
+                    onRemove = { exerciseToRemove = exercise },
+                    prescription = prescriptionInputs.getOrPut(exercise.name) { ExercisePrescriptionInput() },
+                    onPrescriptionChange = { prescriptionInputs[exercise.name] = it }
                 )
             }
         }
@@ -134,6 +166,7 @@ fun CreateWorkoutScreen(
                 TextButton(
                     onClick = {
                         selectedExercises.removeAll { it.name == pendingRemoval.name }
+                        prescriptionInputs.remove(pendingRemoval.name)
                         exerciseToRemove = null
                     }
                 ) {
@@ -182,6 +215,12 @@ fun CreateWorkoutScreen(
     }
 }
 
+private data class ExercisePrescriptionInput(
+    val sets: String = "3",
+    val reps: String = "10",
+    val restSeconds: String = "60"
+)
+
 @Composable
 private fun SelectedExerciseRow(
     index: Int,
@@ -190,7 +229,9 @@ private fun SelectedExerciseRow(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    prescription: ExercisePrescriptionInput,
+    onPrescriptionChange: (ExercisePrescriptionInput) -> Unit
 ) {
     CeaCard(modifier = Modifier.padding(bottom = 9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -216,6 +257,29 @@ private fun SelectedExerciseRow(
                     Text("Remover", color = CeaColors.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CeaInput(
+                label = "Séries",
+                value = prescription.sets,
+                modifier = Modifier.weight(1f),
+                keyboardType = KeyboardType.Number,
+                onValueChange = { onPrescriptionChange(prescription.copy(sets = it)) }
+            )
+            CeaInput(
+                label = "Reps",
+                value = prescription.reps,
+                modifier = Modifier.weight(1f),
+                onValueChange = { onPrescriptionChange(prescription.copy(reps = it)) }
+            )
+            CeaInput(
+                label = "Descanso",
+                value = prescription.restSeconds,
+                modifier = Modifier.weight(1f),
+                keyboardType = KeyboardType.Number,
+                onValueChange = { onPrescriptionChange(prescription.copy(restSeconds = it)) }
+            )
         }
     }
 }

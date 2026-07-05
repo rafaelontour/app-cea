@@ -32,6 +32,10 @@ fun ProfileScreen(
 ) {
     val completedCount = remember(profile) { database.getCompletedWorkoutsCount() }
     val workoutHistory = remember(completedCount) { database.getWorkoutHistoryList() }
+    val activeDays = remember(completedCount) { database.getActiveTrainingDaysCount() }
+    val streakDays = remember(completedCount) { database.getCurrentWorkoutStreakDays() }
+    val totalDurationSeconds = remember(completedCount) { database.getTotalWorkoutDurationSeconds() }
+    val mostTrainedObjective = remember(completedCount) { database.getMostTrainedObjective() ?: "-" }
 
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -45,14 +49,14 @@ fun ProfileScreen(
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard((18 + completedCount).toString(), "Concluídos", Modifier.weight(1f))
-            MetricCard("24", "Dias ativos", Modifier.weight(1f))
-            MetricCard("12h40", "Tempo total", Modifier.weight(1f))
+            MetricCard(completedCount.toString(), "Concluídos", Modifier.weight(1f))
+            MetricCard(activeDays.toString(), "Dias ativos", Modifier.weight(1f))
+            MetricCard(formatWorkoutDuration(totalDurationSeconds), "Tempo total", Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("7 dias", "Sequência", Modifier.weight(1f))
-            MetricCard(profile.objective, "Mais treinado", Modifier.weight(1f))
+            MetricCard(formatDays(streakDays), "Sequência", Modifier.weight(1f))
+            MetricCard(mostTrainedObjective, "Mais treinado", Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
         ProfileCalendarCard(database)
@@ -102,6 +106,20 @@ fun ProfileScreen(
     }
 }
 
+private fun formatWorkoutDuration(totalSeconds: Int): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    return when {
+        hours > 0 -> "${hours}h${minutes.toString().padStart(2, '0')}"
+        minutes > 0 -> "${minutes}min"
+        else -> "0min"
+    }
+}
+
+private fun formatDays(days: Int): String {
+    return if (days == 1) "1 dia" else "$days dias"
+}
+
 @Composable
 fun ProfileCalendarCard(database: CeaDatabaseHelper) {
     var currentMonthOffset by remember { mutableIntStateOf(0) }
@@ -143,6 +161,12 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
 
     val completedDays = remember(database, currentMonthOffset, year) {
         database.getCompletedDaysInMonth(year, calendar.get(Calendar.MONTH))
+    }
+    val scheduledDays = remember(database, currentMonthOffset, year) {
+        database.getScheduledDaysInMonth(year, calendar.get(Calendar.MONTH))
+    }
+    val missedDays = remember(database, currentMonthOffset, year) {
+        database.getMissedScheduledDaysInMonth(year, calendar.get(Calendar.MONTH))
     }
 
     CeaCard {
@@ -198,6 +222,8 @@ fun ProfileCalendarCard(database: CeaDatabaseHelper) {
                     if (day != null) {
                         val state = when {
                             day in completedDays -> DayState.Completed
+                            day in missedDays -> DayState.Missed
+                            day in scheduledDays -> DayState.Scheduled
                             else -> DayState.Empty
                         }
                         CalendarCell(day, state)

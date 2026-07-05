@@ -41,10 +41,14 @@ fun ProgressScreen(
 
     Column(modifier) {
         val completedCount = remember(profile) { database.getCompletedWorkoutsCount() }
+        val activeDays = remember(completedCount) { database.getActiveTrainingDaysCount() }
+        val streakDays = remember(completedCount) { database.getCurrentWorkoutStreakDays() }
+        val weeklyCounts = remember(completedCount) { database.getCurrentWeekWorkoutCounts() }
+        val maxWeeklyCount = weeklyCounts.maxOrNull()?.coerceAtLeast(1) ?: 1
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard((18 + completedCount).toString(), "Concluídos", Modifier.weight(1f))
-            MetricCard("24", "Dias ativos", Modifier.weight(1f))
-            MetricCard("7", "Sequência", Modifier.weight(1f))
+            MetricCard(completedCount.toString(), "Concluídos", Modifier.weight(1f))
+            MetricCard(activeDays.toString(), "Dias ativos", Modifier.weight(1f))
+            MetricCard(streakDays.toString(), "Sequência", Modifier.weight(1f))
         }
         Spacer(Modifier.height(16.dp))
 
@@ -101,18 +105,11 @@ fun ProgressScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
-                listOf(30, 46, 40, 54, 72, 100, 58).zip(listOf("S", "T", "Q", "Q", "S", "S", "D")).forEach { (value, day) ->
+                weeklyCounts.zip(listOf("S", "T", "Q", "Q", "S", "S", "D")).forEach { (count, day) ->
+                    val value = ((count.toFloat() / maxWeeklyCount) * 100).toInt()
                     DayBar(day, value)
                 }
             }
-        }
-        Spacer(Modifier.height(14.dp))
-        CeaCard {
-            SectionTitle("Cargas principais")
-            Spacer(Modifier.height(10.dp))
-            ProgressLine("Supino", 60, 95)
-            ProgressLine("Agachamento", 95, 100)
-            ProgressLine("Remada", 54, 80)
         }
         Spacer(Modifier.height(14.dp))
         CeaCard {

@@ -16,13 +16,13 @@ import br.com.cea.model.UserProfile
 @Composable
 fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
     var name by remember { mutableStateOf(profile.name) }
-    var age by remember { mutableStateOf(profile.age.toString()) }
-    var weight by remember { mutableStateOf(profile.weightKg.toString()) }
-    var height by remember { mutableStateOf(profile.heightCm.toString()) }
+    var age by remember { mutableStateOf(profile.age.toInputText()) }
+    var weight by remember { mutableStateOf(profile.weightKg.toInputText()) }
+    var height by remember { mutableStateOf(profile.heightCm.toInputText()) }
     var objective by remember { mutableStateOf(profile.objective.normalizedObjective()) }
     var level by remember { mutableStateOf(profile.level.normalizedLevel()) }
-    var frequency by remember { mutableStateOf(profile.frequencyPerWeek.toString()) }
-    var hours by remember { mutableStateOf(profile.hoursPerDay.toString()) }
+    var frequency by remember { mutableStateOf(profile.frequencyPerWeek.toInputText()) }
+    var hours by remember { mutableStateOf(profile.hoursPerDay.toInputText()) }
 
     Column(
         modifier = Modifier
@@ -83,9 +83,9 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
             onSave(
                 profile.copy(
                     name = name.ifBlank { "Usuário" },
-                    age = age.toIntOrNull() ?: 20,
-                    weightKg = weight.toDoubleOrNull() ?: 70.0,
-                    heightCm = height.toDoubleOrNull() ?: 175.0,
+                    age = age.toIntOrNull() ?: 0,
+                    weightKg = weight.toDoubleOrNull() ?: 0.0,
+                    heightCm = height.toDoubleOrNull() ?: 0.0,
                     objective = objective,
                     level = level,
                     frequencyPerWeek = frequency.toIntOrNull() ?: 3,
@@ -94,6 +94,14 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
             )
         }
     }
+}
+
+private fun Int.toInputText(): String {
+    return if (this > 0) toString() else ""
+}
+
+private fun Double.toInputText(): String {
+    return if (this > 0.0) toString() else ""
 }
 
 @Composable

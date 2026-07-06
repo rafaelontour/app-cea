@@ -9,6 +9,7 @@ import br.com.cea.model.ScheduledWorkout
 import br.com.cea.model.UserProfile
 import br.com.cea.model.Workout
 import br.com.cea.model.WorkoutExerciseSpec
+import br.com.cea.model.WorkoutHistoryEntry
 import br.com.cea.model.WeightLog
 import org.json.JSONArray
 import java.util.Calendar
@@ -84,13 +85,11 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         db.execSQL("CREATE TABLE weight_bmi_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, weight_kg REAL, height_cm REAL, bmi REAL, classification TEXT, recorded_at INTEGER)")
         db.execSQL("CREATE TABLE hydration_goals (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, daily_goal_ml INTEGER, reminder_enabled INTEGER, reminder_interval_minutes INTEGER)")
         db.execSQL("CREATE TABLE water_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount_ml INTEGER, logged_at INTEGER)")
-        db.execSQL("CREATE TABLE app_preferences (key TEXT PRIMARY KEY, value TEXT)")
         seed(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         listOf(
-            "app_preferences",
             "water_logs",
             "hydration_goals",
             "weight_bmi_history",
@@ -585,6 +584,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     fun scheduleWorkout(workoutId: Long, scheduledAt: Long): Long {
         ensureScheduledWorkoutsTable()
+        findScheduledWorkoutOnDay(workoutId, scheduledAt)?.let { return it }
         return writableDatabase.insert(
             "scheduled_workouts",
             null,
@@ -595,6 +595,43 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 put("status", "scheduled")
             }
         )
+    }
+
+    fun rescheduleWorkout(scheduleId: Long, scheduledAt: Long): Int {
+        ensureScheduledWorkoutsTable()
+        val workoutId = getScheduledWorkoutId(scheduleId) ?: return 0
+        if (findScheduledWorkoutOnDay(workoutId, scheduledAt, ignoredScheduleId = scheduleId) != null) {
+            return 0
+        }
+        return writableDatabase.update(
+            "scheduled_workouts",
+            ContentValues().apply {
+                put("scheduled_at", scheduledAt)
+                put("status", "scheduled")
+            },
+            "id = ?",
+            arrayOf(scheduleId.toString())
+        )
+    }
+
+    fun cancelScheduledWorkout(scheduleId: Long): Int {
+        ensureScheduledWorkoutsTable()
+        return writableDatabase.delete("scheduled_workouts", "id = ?", arrayOf(scheduleId.toString()))
+    }
+
+    fun getScheduledWorkoutIdsForDay(timestamp: Long): Set<Long> {
+        ensureScheduledWorkoutsTable()
+        val (start, end) = dayRange(timestamp)
+        val ids = mutableSetOf<Long>()
+        readableDatabase.rawQuery(
+            "SELECT workout_id FROM scheduled_workouts WHERE scheduled_at >= ? AND scheduled_at < ?",
+            arrayOf(start.toString(), end.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                ids.add(cursor.getLong(0))
+            }
+        }
+        return ids
     }
 
     fun getScheduledDaysInMonth(year: Int, month: Int): Set<Int> {
@@ -662,6 +699,34 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         }
     }
 
+    fun getScheduledWorkoutsForDay(timestamp: Long): List<ScheduledWorkout> {
+        ensureScheduledWorkoutsTable()
+        val (start, end) = dayRange(timestamp)
+        val sql = """
+            SELECT s.id, s.workout_id, w.title, w.objective, w.duration, s.scheduled_at
+            FROM scheduled_workouts s
+            INNER JOIN workouts w ON s.workout_id = w.id
+            WHERE s.scheduled_at >= ? AND s.scheduled_at < ?
+            ORDER BY s.scheduled_at ASC
+        """.trimIndent()
+        return buildList {
+            readableDatabase.rawQuery(sql, arrayOf(start.toString(), end.toString())).use { cursor ->
+                while (cursor.moveToNext()) {
+                    add(
+                        ScheduledWorkout(
+                            id = cursor.getLong(0),
+                            workoutId = cursor.getLong(1),
+                            workoutTitle = cursor.getString(2),
+                            workoutObjective = cursor.getString(3),
+                            workoutDuration = cursor.getString(4),
+                            scheduledAt = cursor.getLong(5)
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     fun logWorkoutCompletion(workoutId: Long, durationSeconds: Int): Long {
         return writableDatabase.insert(
             "workout_history",
@@ -678,6 +743,57 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     private fun ensureScheduledWorkoutsTable() {
         writableDatabase.execSQL("CREATE TABLE IF NOT EXISTS scheduled_workouts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, workout_id INTEGER, scheduled_at INTEGER, status TEXT)")
+    }
+
+    private fun findScheduledWorkoutOnDay(
+        workoutId: Long,
+        scheduledAt: Long,
+        ignoredScheduleId: Long? = null
+    ): Long? {
+        val (start, end) = dayRange(scheduledAt)
+        val ignoredClause = if (ignoredScheduleId != null) " AND id != ?" else ""
+        val args = buildList {
+            add(workoutId.toString())
+            add(start.toString())
+            add(end.toString())
+            if (ignoredScheduleId != null) add(ignoredScheduleId.toString())
+        }.toTypedArray()
+        readableDatabase.rawQuery(
+            "SELECT id FROM scheduled_workouts WHERE workout_id = ? AND scheduled_at >= ? AND scheduled_at < ?$ignoredClause LIMIT 1",
+            args
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+        return null
+    }
+
+    private fun getScheduledWorkoutId(scheduleId: Long): Long? {
+        readableDatabase.rawQuery(
+            "SELECT workout_id FROM scheduled_workouts WHERE id = ? LIMIT 1",
+            arrayOf(scheduleId.toString())
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+        return null
+    }
+
+    private fun dayRange(timestamp: Long): Pair<Long, Long> {
+        val start = Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val end = Calendar.getInstance().apply {
+            timeInMillis = start.timeInMillis
+            add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return start.timeInMillis to end.timeInMillis
     }
 
     private fun startOfToday(now: Calendar): Calendar {
@@ -803,10 +919,10 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         return null
     }
 
-    fun getWorkoutHistoryList(): List<Pair<String, Long>> {
-        val list = mutableListOf<Pair<String, Long>>()
+    fun getWorkoutHistoryList(): List<WorkoutHistoryEntry> {
+        val list = mutableListOf<WorkoutHistoryEntry>()
         val sql = """
-            SELECT w.title, h.completed_at 
+            SELECT w.title, h.completed_at, h.duration_seconds
             FROM workout_history h
             LEFT JOIN workouts w ON h.workout_id = w.id
             ORDER BY h.completed_at DESC
@@ -815,7 +931,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
             while (cursor.moveToNext()) {
                 val title = cursor.getString(0) ?: "Treino Livre"
                 val completedAt = cursor.getLong(1)
-                list.add(Pair(title, completedAt))
+                val durationSeconds = cursor.getInt(2)
+                list.add(WorkoutHistoryEntry(title, completedAt, durationSeconds))
             }
         }
         return list

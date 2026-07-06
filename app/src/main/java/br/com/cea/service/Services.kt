@@ -95,8 +95,9 @@ class ExerciseImageClient(
         if (imageUri.isBlank()) return null
 
         val imagePath = imageUri.removePrefix("images/").trimStart('/')
+        val resolvedBaseUrl = baseUrl.ifBlank { DEFAULT_BASE_URL }.trimEnd('/')
         return try {
-            val connection = (URL("${baseUrl.trimEnd('/')}/exercise-image/$imagePath").openConnection() as HttpURLConnection).apply {
+            val connection = (URL("$resolvedBaseUrl/exercise-image/$imagePath").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 5_000
                 readTimeout = 10_000
@@ -115,6 +116,6 @@ class ExerciseImageClient(
     }
 
     companion object {
-        private const val DEFAULT_BASE_URL = "http://10.0.2.2:8080"
+        const val DEFAULT_BASE_URL = "http://10.0.2.2:8080"
     }
 }

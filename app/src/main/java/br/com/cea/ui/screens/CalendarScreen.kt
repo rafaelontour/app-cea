@@ -76,6 +76,15 @@ fun CalendarScreen(
     }
     val workouts = remember(database, refreshSchedule) { database.listWorkouts(publicOnly = false) }
     val upcoming = remember(database, refreshSchedule) { database.getUpcomingScheduledWorkouts() }
+    val selectedDate = remember(year, calendar, selectedDayInMonth) {
+        selectedDateMillis(year, calendar.get(Calendar.MONTH), selectedDayInMonth)
+    }
+    val scheduledWorkoutIdsForSelectedDay = remember(database, refreshSchedule, selectedDate) {
+        database.getScheduledWorkoutIdsForDay(selectedDate)
+    }
+    val selectedDayWorkouts = remember(database, refreshSchedule, selectedDate) {
+        database.getScheduledWorkoutsForDay(selectedDate)
+    }
 
     Column(modifier) {
         Row(
@@ -175,6 +184,32 @@ fun CalendarScreen(
             fontSize = 11.sp
         )
         Spacer(Modifier.height(8.dp))
+        SectionTitle("Treinos deste dia")
+        Spacer(Modifier.height(8.dp))
+        if (selectedDayWorkouts.isEmpty()) {
+            Text(
+                text = "Nenhum treino agendado para este dia.",
+                color = CeaColors.Muted,
+                fontSize = 11.sp
+            )
+        } else {
+            selectedDayWorkouts.forEach { scheduled ->
+                WorkoutRow(
+                    title = scheduled.workoutTitle,
+                    subtitle = "${scheduled.workoutObjective} - ${scheduled.workoutDuration}",
+                    action = "Iniciar",
+                    onStart = { onStart(scheduled.workoutId) },
+                    extraActions = listOf(
+                        "Cancelar" to {
+                            database.cancelScheduledWorkout(scheduled.id)
+                            refreshSchedule++
+                        }
+                    )
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+        Spacer(Modifier.height(16.dp))
         if (workouts.isEmpty()) {
             Text(
                 text = "Crie ou importe um treino para poder agendar.",
@@ -183,13 +218,16 @@ fun CalendarScreen(
             )
         } else {
             workouts.take(4).forEach { workout ->
+                val alreadyScheduled = workout.id in scheduledWorkoutIdsForSelectedDay
                 WorkoutRow(
                     title = workout.title,
                     subtitle = "${workout.objective} - ${workout.duration}",
-                    action = "Agendar",
+                    action = if (alreadyScheduled) "Agendado" else "Agendar",
                     onStart = {
-                        database.scheduleWorkout(workout.id, selectedDateMillis(year, calendar.get(Calendar.MONTH), selectedDayInMonth))
-                        refreshSchedule++
+                        if (!alreadyScheduled) {
+                            database.scheduleWorkout(workout.id, selectedDate)
+                            refreshSchedule++
+                        }
                     }
                 )
                 Spacer(Modifier.height(10.dp))
@@ -211,7 +249,17 @@ fun CalendarScreen(
                     title = scheduled.workoutTitle,
                     subtitle = "${formatScheduleDate(scheduled.scheduledAt)} - ${scheduled.workoutObjective} - ${scheduled.workoutDuration}",
                     action = "Iniciar",
-                    onStart = { onStart(scheduled.workoutId) }
+                    onStart = { onStart(scheduled.workoutId) },
+                    extraActions = listOf(
+                        "Reagendar" to {
+                            database.rescheduleWorkout(scheduled.id, selectedDate)
+                            refreshSchedule++
+                        },
+                        "Cancelar" to {
+                            database.cancelScheduledWorkout(scheduled.id)
+                            refreshSchedule++
+                        }
+                    )
                 )
                 Spacer(Modifier.height(10.dp))
             }

@@ -24,7 +24,7 @@ enum class Screen(val tab: String, val label: String) {
     MyWorkouts("workouts", "Treinos"),
     Explore("workouts", "Explorar"),
     Progress("progress", "Progresso"),
-    Exercises("exercises", "Exercícios"),
+    Exercises("workouts", "Exercícios"),
     Calendar("calendar", "Calendário"),
     Profile("profile", "Perfil"),
     ActiveWorkout("workouts", "Ativo")

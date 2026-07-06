@@ -1,5 +1,7 @@
 package br.com.cea.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -17,19 +19,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.cea.data.CeaDatabaseHelper
+import br.com.cea.model.Exercise
 import br.com.cea.model.Workout
+import br.com.cea.service.ExerciseImageClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ActiveWorkoutScreen(
     modifier: Modifier,
     workout: Workout,
     database: CeaDatabaseHelper,
+    imageBackendUrl: String,
     onFinished: () -> Unit
 ) {
     var currentExerciseIndex by remember { mutableIntStateOf(0) }
@@ -140,6 +149,12 @@ fun ActiveWorkoutScreen(
                         exercisesCatalog.find { it.name.equals(clean, ignoreCase = true) }
                     }
                     if (nextExerciseObj != null) {
+                        Spacer(Modifier.height(12.dp))
+                        ExercisePreviewImage(
+                            exercise = nextExerciseObj,
+                            imageBackendUrl = imageBackendUrl,
+                            label = "Proximo exercicio"
+                        )
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatusPill(nextExerciseObj.level, CeaColors.Green)
@@ -183,6 +198,12 @@ fun ActiveWorkoutScreen(
                         )
                     }
                     if (currentExerciseObj != null) {
+                        Spacer(Modifier.height(12.dp))
+                        ExercisePreviewImage(
+                            exercise = currentExerciseObj,
+                            imageBackendUrl = imageBackendUrl,
+                            label = "Referencia visual"
+                        )
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatusPill(currentExerciseObj.level, CeaColors.Green)
@@ -347,6 +368,97 @@ fun ActiveWorkoutScreen(
             onClose = onFinished
         )
     }
+}
+
+@Composable
+private fun ExercisePreviewImage(
+    exercise: Exercise,
+    imageBackendUrl: String,
+    label: String
+) {
+    val imageUris = remember(exercise.imageUri) { activeWorkoutImageUris(exercise.imageUri) }
+    val imageClient = remember(imageBackendUrl) { ExerciseImageClient(imageBackendUrl) }
+    var currentIndex by remember(imageUris) { mutableIntStateOf(0) }
+    var bitmap by remember(imageUris, currentIndex, imageBackendUrl) {
+        mutableStateOf<android.graphics.Bitmap?>(null)
+    }
+
+    LaunchedEffect(imageUris) {
+        currentIndex = 0
+    }
+
+    LaunchedEffect(imageUris, currentIndex, imageBackendUrl) {
+        bitmap = null
+        if (imageUris.isNotEmpty()) {
+            bitmap = withContext(Dispatchers.IO) {
+                imageClient.loadBitmap(imageUris[currentIndex])
+            }
+        }
+    }
+
+    LaunchedEffect(imageUris) {
+        if (imageUris.size > 1) {
+            while (true) {
+                kotlinx.coroutines.delay(1800L)
+                currentIndex = if (currentIndex == imageUris.lastIndex) 0 else currentIndex + 1
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(170.dp)
+            .border(1.dp, CeaColors.CardAlt, RoundedCornerShape(12.dp))
+            .background(CeaColors.Black, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        val loadedBitmap = bitmap
+        if (loadedBitmap != null) {
+            Image(
+                bitmap = loadedBitmap.asImageBitmap(),
+                contentDescription = label,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Text(
+                text = if (imageUris.isEmpty()) "Sem imagem" else "Carregando imagem...",
+                color = CeaColors.Muted,
+                fontSize = 12.sp
+            )
+        }
+        if (imageUris.size > 1) {
+            Surface(
+                color = CeaColors.Card.copy(alpha = 0.88f),
+                shape = RoundedCornerShape(99.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "${currentIndex + 1}/${imageUris.size}",
+                    color = CeaColors.Text,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun activeWorkoutImageUris(imageUri: String): List<String> {
+    val imageUris = imageUri
+        .split("|")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+
+    if (imageUris.size != 1 || !imageUris.first().endsWith("/0.jpg")) {
+        return imageUris
+    }
+
+    return imageUris + (imageUris.first().removeSuffix("/0.jpg") + "/1.jpg")
 }
 
 @Composable

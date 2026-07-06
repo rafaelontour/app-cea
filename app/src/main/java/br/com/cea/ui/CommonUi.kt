@@ -210,7 +210,8 @@ fun WorkoutRow(
     onStart: () -> Unit,
     onEdit: (() -> Unit)? = null,
     onDuplicate: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    extraActions: List<Pair<String, () -> Unit>> = emptyList()
 ) {
     CeaCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -218,7 +219,7 @@ fun WorkoutRow(
                 Text(title, color = CeaColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(subtitle, color = CeaColors.Muted, fontSize = 11.sp)
 
-                if (onEdit != null || onDuplicate != null || onDelete != null) {
+                if (onEdit != null || onDuplicate != null || onDelete != null || extraActions.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (onEdit != null) {
@@ -246,6 +247,15 @@ fun WorkoutRow(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable(onClick = onDelete)
+                            )
+                        }
+                        extraActions.forEach { (label, action) ->
+                            Text(
+                                text = label,
+                                color = CeaColors.Blue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable(onClick = action)
                             )
                         }
                     }

@@ -565,6 +565,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
     }
 
     fun logWeight(weightKg: Double, heightCm: Double): Long {
+        ensureWeightBmiHistoryTable()
         val bmi = if (heightCm > 0) weightKg / ((heightCm / 100.0) * (heightCm / 100.0)) else 0.0
         val classification = when {
             bmi < 18.5 -> "Abaixo do peso"
@@ -573,7 +574,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
             else -> "Obesidade"
         }
 
-        writableDatabase.execSQL("UPDATE users SET weight_kg = ?", arrayOf(weightKg))
+        writableDatabase.execSQL("UPDATE users SET weight_kg = ?, height_cm = ?", arrayOf(weightKg, heightCm))
 
         return writableDatabase.insert(
             "weight_bmi_history",
@@ -589,7 +590,14 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         )
     }
 
+    private fun ensureWeightBmiHistoryTable() {
+        writableDatabase.execSQL(
+            "CREATE TABLE IF NOT EXISTS weight_bmi_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, weight_kg REAL, height_cm REAL, bmi REAL, classification TEXT, recorded_at INTEGER)"
+        )
+    }
+
     fun getWeightHistory(): List<WeightLog> {
+        ensureWeightBmiHistoryTable()
         val format = java.text.SimpleDateFormat("dd/MM", java.util.Locale.getDefault())
         return buildList {
             readableDatabase.rawQuery(

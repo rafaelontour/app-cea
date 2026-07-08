@@ -755,17 +755,11 @@ private fun ImageNavButton(text: String, onClick: () -> Unit) {
 }
 
 private fun carouselImageUris(imageUri: String): List<String> {
-    val imageUris = imageUri
-        .split(",")
+    return imageUri
+        .split("|", ",")
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .distinct()
-
-    if (imageUris.size != 1 || !imageUris.first().endsWith("/0.jpg")) {
-        return imageUris
-    }
-
-    return imageUris + (imageUris.first().removeSuffix("/0.jpg") + "/1.jpg")
 }
 
 private fun String.matchesFilter(query: String): Boolean {

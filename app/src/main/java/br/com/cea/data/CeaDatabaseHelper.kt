@@ -357,7 +357,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                             muscleGroup = cursor.getString(cursor.getColumnIndexOrThrow("muscle_group")),
                             level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
                             instructions = cursor.getString(cursor.getColumnIndexOrThrow("instructions")),
-                            imageUri = assetImageUris(cursor.getString(cursor.getColumnIndexOrThrow("image_uri"))),
+                            imageUri = normalizeExerciseImageUris(cursor.getString(cursor.getColumnIndexOrThrow("image_uri"))),
                             primaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("primary_muscles")),
                             secondaryMuscles = cursor.getString(cursor.getColumnIndexOrThrow("secondary_muscles")),
                             equipment = cursor.getString(cursor.getColumnIndexOrThrow("equipment")) ?: ""
@@ -454,10 +454,10 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 val imageUri = buildList {
                     if (imagesArray != null) {
                         for (idx in 0 until imagesArray.length()) {
-                            add(assetImageUris(imagesArray.optString(idx)))
+                            add(imagesArray.optString(idx))
                         }
                     }
-                }.filter { it.isNotBlank() }.joinToString(",")
+                }.filter { it.isNotBlank() }.flatMap { expandAssetImagePath(it) }.distinct().joinToString("|")
                 val equipment = jsonObject.optString("equipment", "peso-do-corpo")
 
                 insertExercise(db, name, muscleGroup, level, instructions, imageUri, primaryMusclesStr, secondaryMusclesStr, equipment)
@@ -498,19 +498,44 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
         )
     }
 
-    private fun assetImageUris(path: String): String {
+    private fun normalizeExerciseImageUris(path: String): String {
         return path
-            .split(",")
+            .split(",", "|")
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .map { imagePath ->
-                when {
-                    imagePath.startsWith("images/") -> imagePath
-                    else -> "images/$imagePath"
-                }
-            }
+            .flatMap { expandAssetImagePath(it) }
             .distinct()
-            .joinToString(",")
+            .joinToString("|")
+    }
+
+    private fun expandAssetImagePath(path: String): List<String> {
+        val normalizedPath = when {
+            path.startsWith("images/") -> path
+            else -> "images/$path"
+        }.trimEnd('/')
+        val directory = if (isImageFile(normalizedPath)) {
+            normalizedPath.substringBeforeLast("/", missingDelimiterValue = "")
+        } else {
+            normalizedPath
+        }
+        if (directory.isBlank()) return listOf(normalizedPath)
+
+        val listedImages = try {
+            context.assets.list(directory)
+                ?.filter { isImageFile(it) }
+                ?.sortedWith(compareBy<String> { it.substringBeforeLast(".").toIntOrNull() ?: Int.MAX_VALUE }.thenBy { it })
+                ?.map { "$directory/$it" }
+                .orEmpty()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        return listedImages.ifEmpty { listOf(normalizedPath) }
+    }
+
+    private fun isImageFile(path: String): Boolean {
+        val lower = path.lowercase()
+        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp")
     }
 
     private fun insertWorkout(

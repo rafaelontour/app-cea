@@ -449,16 +449,11 @@ private fun ExercisePreviewImage(
 }
 
 private fun activeWorkoutImageUris(imageUri: String): List<String> {
-    val imageUris = imageUri
-        .split("|")
+    return imageUri
+        .split("|", ",")
         .map { it.trim() }
         .filter { it.isNotBlank() }
-
-    if (imageUris.size != 1 || !imageUris.first().endsWith("/0.jpg")) {
-        return imageUris
-    }
-
-    return imageUris + (imageUris.first().removeSuffix("/0.jpg") + "/1.jpg")
+        .distinct()
 }
 
 @Composable

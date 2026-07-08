@@ -32,7 +32,6 @@ fun CreateWorkoutScreen(
     var name by remember(editingWorkout) { mutableStateOf(editingWorkout?.title ?: "") }
     var objective by remember(editingWorkout) { mutableStateOf(editingWorkout?.objective ?: profile.objective.ifBlank { "Hipertrofia" }) }
     var level by remember(editingWorkout) { mutableStateOf((editingWorkout?.level ?: profile.level).normalizedTrainingLevel()) }
-    var duration by remember(editingWorkout) { mutableStateOf(editingWorkout?.duration ?: "30 min") }
     var muscle by remember { mutableStateOf("Peito") }
     var exerciseToRemove by remember { mutableStateOf<Exercise?>(null) }
     var showLevelIncreaseDialog by remember { mutableStateOf(false) }
@@ -69,7 +68,7 @@ fun CreateWorkoutScreen(
             title = name.ifBlank { "Meu Treino" },
             objective = objective,
             level = level.normalizedTrainingLevel(),
-            duration = duration,
+            duration = editingWorkout?.duration.orEmpty(),
             publicWorkout = false,
             exercises = specs.map { it.name },
             exerciseSpecs = specs
@@ -84,9 +83,6 @@ fun CreateWorkoutScreen(
         Spacer(Modifier.height(14.dp))
         FieldLabel("Nível")
         SelectableChips(listOf("Iniciante", "Intermediário", "Avançado"), level) { level = it }
-        Spacer(Modifier.height(14.dp))
-        FieldLabel("Duração")
-        SelectableChips(listOf("30 min", "45 min", "60 min"), duration) { duration = it }
         Spacer(Modifier.height(14.dp))
         FieldLabel("Grupo muscular")
         SelectableChips(listOf("Peito", "Costas", "Pernas", "Ombros", "Braços", "Abdominais"), muscle) { muscle = it }

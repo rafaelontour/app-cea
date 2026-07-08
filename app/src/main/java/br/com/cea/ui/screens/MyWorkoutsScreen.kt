@@ -35,7 +35,6 @@ fun MyWorkoutsScreen(
             } else {
                 when (filter) {
                     "Nivel" -> workout.level.contains(query, ignoreCase = true)
-                    "Duracao" -> workout.duration.contains(query, ignoreCase = true)
                     else -> workout.title.contains(query, ignoreCase = true) ||
                         workout.objective.contains(query, ignoreCase = true)
                 }
@@ -145,7 +144,7 @@ private fun MyWorkoutsTab(
             val origin = if (workout.imported && workout.origin != null) " - Importado de ${workout.origin}" else ""
             WorkoutRow(
                 title = workout.title,
-                subtitle = "${workout.objective} - ${workout.duration}$origin",
+                subtitle = "${workout.objective}$origin",
                 action = "Iniciar",
                 onStart = { onStart(workout) },
                 onEdit = { onEdit(workout) },
@@ -168,7 +167,7 @@ private fun ExploreWorkoutsTab(
 ) {
     CeaInput("Pesquisar treino ou objetivo", query, onValueChange = onQueryChange)
     Spacer(Modifier.height(10.dp))
-    SelectableChips(listOf("Objetivo", "Nivel", "Duracao"), filter, onFilterChange)
+    SelectableChips(listOf("Objetivo", "Nivel"), filter, onFilterChange)
     Spacer(Modifier.height(14.dp))
     if (workouts.isEmpty()) {
         CeaCard {
@@ -180,7 +179,7 @@ private fun ExploreWorkoutsTab(
         workouts.forEach { workout ->
             WorkoutRow(
                 title = workout.title,
-                subtitle = "${workout.objective} - ${workout.level} - ${workout.duration}",
+                subtitle = "${workout.objective} - ${workout.level}",
                 action = "Importar",
                 onStart = { onImport(workout) }
             )
@@ -206,7 +205,7 @@ private fun PredefinedWorkoutsTab(
         workouts.forEach { workout ->
             WorkoutRow(
                 title = workout.title,
-                subtitle = "${workout.objective} - ${workout.level} - ${workout.duration}",
+                subtitle = "${workout.objective} - ${workout.level}",
                 action = "Iniciar",
                 onStart = { onStart(workout) },
                 onDuplicate = { onDuplicate(workout) }

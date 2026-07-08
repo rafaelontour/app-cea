@@ -95,7 +95,13 @@ private fun CeaApp(activity: MainActivity) {
 
     var profile by remember { mutableStateOf(database.getProfile()) }
     var screen by remember {
-        mutableStateOf(if (preferences.getBoolean("profile_done", false)) Screen.Home else Screen.ProfileSetup)
+        mutableStateOf(
+            if (preferences.getBoolean("profile_done", false) && profile.hasRequiredEntryProfile()) {
+                Screen.Home
+            } else {
+                Screen.ProfileSetup
+            }
+        )
     }
     var refresh by remember { mutableIntStateOf(0) }
     val selectedExercises = remember { mutableStateListOf<Exercise>() }
@@ -105,7 +111,12 @@ private fun CeaApp(activity: MainActivity) {
     val imageBackendUrl = ExerciseImageClient.DEFAULT_BASE_URL
 
     LaunchedEffect(screen, refresh) {
-        profile = database.getProfile()
+        val updatedProfile = database.getProfile()
+        profile = updatedProfile
+        if (screen != Screen.ProfileSetup && !updatedProfile.hasRequiredEntryProfile()) {
+            preferences.edit().putBoolean("profile_done", false).apply()
+            screen = Screen.ProfileSetup
+        }
     }
 
     fun promoteProfileLevelIfNeeded(newLevel: String) {
@@ -122,13 +133,13 @@ private fun CeaApp(activity: MainActivity) {
             profile = profile,
             onSave = { updated ->
                 database.saveProfile(updated)
-                if (updated.weightKg > 0.0 && updated.heightCm > 0.0) {
-                    database.logWeight(updated.weightKg, updated.heightCm)
-                }
                 preferences.edit().putBoolean("profile_done", true).apply()
                 analytics.track(context, "profile_created")
                 profile = updated
                 screen = Screen.Home
+                if (updated.weightKg > 0.0 && updated.heightCm > 0.0) {
+                    database.logWeight(updated.weightKg, updated.heightCm)
+                }
             }
         )
         return
@@ -386,6 +397,15 @@ private fun AppShell(
 }
 
 private fun navItems() = listOf(Screen.Home, Screen.MyWorkouts, Screen.Calendar, Screen.Progress, Screen.Profile)
+
+private fun br.com.cea.model.UserProfile.hasRequiredEntryProfile(): Boolean {
+    return name.isNotBlank() &&
+        age > 0 &&
+        weightKg > 0.0 &&
+        heightCm > 0.0 &&
+        level.isNotBlank() &&
+        objective.isNotBlank()
+}
 
 private fun Screen.icon(): ImageVector {
     return when (this) {

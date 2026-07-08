@@ -155,11 +155,49 @@ fun PrimaryAction(text: String, modifier: Modifier = Modifier, enabled: Boolean 
 }
 
 @Composable
+fun SecondaryAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 46.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = CeaColors.CardAlt,
+            contentColor = CeaColors.Text,
+            disabledContainerColor = CeaColors.CardAlt,
+            disabledContentColor = CeaColors.Muted
+        ),
+        shape = RoundedCornerShape(9.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+    ) {
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 fun SmallAction(text: String, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier.heightIn(min = 38.dp),
         colors = ButtonDefaults.buttonColors(containerColor = CeaColors.Green, contentColor = Color.Black),
+        shape = RoundedCornerShape(9.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Text(text, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun SmallSecondaryAction(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.heightIn(min = 38.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = CeaColors.CardAlt,
+            contentColor = CeaColors.Text,
+            disabledContainerColor = CeaColors.CardAlt,
+            disabledContentColor = CeaColors.Muted
+        ),
         shape = RoundedCornerShape(9.dp),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
     ) {
@@ -208,6 +246,8 @@ fun WorkoutRow(
     subtitle: String,
     action: String,
     onStart: () -> Unit,
+    actionEnabled: Boolean = true,
+    actionDone: Boolean = false,
     onEdit: (() -> Unit)? = null,
     onDuplicate: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
@@ -262,7 +302,11 @@ fun WorkoutRow(
                 }
             }
             Spacer(Modifier.width(14.dp))
-            SmallAction(action, onStart)
+            if (actionDone || !actionEnabled) {
+                SmallSecondaryAction(action, enabled = false, onClick = onStart)
+            } else {
+                SmallAction(action, onStart)
+            }
         }
     }
 }

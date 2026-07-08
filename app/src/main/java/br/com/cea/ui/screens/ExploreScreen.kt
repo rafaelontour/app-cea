@@ -26,7 +26,6 @@ fun ExploreScreen(
             } else {
                 when (filter) {
                     "Nível" -> workout.level.contains(query, ignoreCase = true)
-                    "Duração" -> workout.duration.contains(query, ignoreCase = true)
                     else -> workout.title.contains(query, ignoreCase = true) ||
                         workout.objective.contains(query, ignoreCase = true)
                 }
@@ -40,7 +39,7 @@ fun ExploreScreen(
             GhostAction("Agenda", onCalendar)
         }
         Spacer(Modifier.height(12.dp))
-        SelectableChips(listOf("Objetivo", "Nível", "Duração"), filter) { filter = it }
+        SelectableChips(listOf("Objetivo", "Nível"), filter) { filter = it }
         Spacer(Modifier.height(14.dp))
         if (filteredWorkouts.isEmpty()) {
             CeaCard {
@@ -66,7 +65,7 @@ fun ExploreScreen(
             filteredWorkouts.forEach { workout ->
                 WorkoutRow(
                     title = workout.title,
-                    subtitle = "${workout.objective} - ${workout.level} - ${workout.duration}",
+                    subtitle = "${workout.objective} - ${workout.level}",
                     action = "Importar",
                     onStart = { onImport(workout) }
                 )

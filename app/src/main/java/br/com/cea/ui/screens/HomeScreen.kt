@@ -44,7 +44,7 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "${nextScheduledWorkout.workoutObjective} - ${nextScheduledWorkout.workoutDuration}",
+                    nextScheduledWorkout.workoutObjective,
                     color = CeaColors.Muted,
                     fontSize = 12.sp
                 )

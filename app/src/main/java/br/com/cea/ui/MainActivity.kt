@@ -145,6 +145,7 @@ private fun CeaApp(activity: MainActivity) {
 
     AppShell(
         screen = screen,
+        profile = profile,
         title = when (screen) {
             Screen.Home -> "Olá, ${profile.name.firstName()}"
             Screen.CreateWorkout -> "Criar novo treino"
@@ -332,14 +333,27 @@ private fun CeaApp(activity: MainActivity) {
                 profile = profile,
                 waterMl = database.getTodayWaterMl(),
                 database = database,
-                onEdit = { screen = Screen.ProfileSetup },
+                onEdit = {
+                    screen = Screen.ProfileSetup
+                },
                 onWater = {
                     activity.requestNotificationPermission()
                     database.logWater(250)
                     analytics.track(context, "water_logged")
                     refresh++
                 },
-                onProgress = { screen = Screen.Progress }
+                onProgress = {
+                    screen = Screen.Progress
+                },
+                onProfileChanged = { updatedProfile ->
+                    /*
+                     * Atualiza o estado central do aplicativo.
+                     *
+                     * Dessa forma, a foto muda imediatamente tanto na tela de
+                     * perfil quanto no cabeçalho das demais abas.
+                     */
+                    profile = updatedProfile
+                }
             )
             Screen.ProfileSetup -> Unit
         }
@@ -349,6 +363,7 @@ private fun CeaApp(activity: MainActivity) {
 @Composable
 private fun AppShell(
     screen: Screen,
+    profile: br.com.cea.model.UserProfile,
     title: String,
     subtitle: String,
     onNavigate: (Screen) -> Unit,
@@ -383,7 +398,11 @@ private fun AppShell(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Header(title = title, subtitle = subtitle)
+            Header(
+                title = title,
+                subtitle = subtitle,
+                profile = profile
+            )
             content(
                 Modifier
                     .fillMaxSize()
@@ -461,19 +480,62 @@ private fun BottomNavPill(
 }
 
 @Composable
-private fun Header(title: String, subtitle: String) {
+private fun Header(
+    title: String,
+    subtitle: String,
+    profile: br.com.cea.model.UserProfile
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 18.dp, top = 20.dp, end = 18.dp, bottom = 10.dp),
+            .padding(
+                start = 18.dp,
+                top = 20.dp,
+                end = 18.dp,
+                bottom = 10.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = CeaColors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                color = CeaColors.Text,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+
             if (subtitle.isNotBlank()) {
-                Text(subtitle, color = CeaColors.Muted, fontSize = 12.sp)
+                Text(
+                    text = subtitle,
+                    color = CeaColors.Muted,
+                    fontSize = 12.sp
+                )
             }
         }
+
+        /*
+         * Avatar do usuário.
+         *
+         * Quando não houver foto, mostra as iniciais.
+         * Não é clicável fora da tela Perfil.
+         */
+        UserAvatar(
+            profileImagePath = profile.profileImagePath,
+            userName = profile.name,
+            size = 38.dp
+        )
+
+        Spacer(
+            modifier = Modifier.width(8.dp)
+        )
+
+        /*
+         * Marca do aplicativo.
+         *
+         * A logo do CEA continua preservada no canto superior direito.
+         */
         Avatar()
     }
 }

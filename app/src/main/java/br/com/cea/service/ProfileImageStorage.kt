@@ -30,7 +30,10 @@ class ProfileImageStorage(
     private val appContext = context.applicationContext
 
     private val profileDirectory: File
-        get() = File(appContext.filesDir, PROFILE_DIRECTORY)
+        get() = File(
+            appContext.filesDir,
+            PROFILE_DIRECTORY
+        )
 
     /**
      * Processa e salva uma nova foto de perfil.
@@ -46,13 +49,14 @@ class ProfileImageStorage(
         ensureProfileDirectoryExists()
 
         val decodedBitmap = decodeSampledBitmap(uri)
-            ?: throw IOException("Não foi possível interpretar a imagem selecionada.")
 
         var processedBitmap: Bitmap? = null
         var temporaryFile: File? = null
 
         try {
-            processedBitmap = cropAndResize(decodedBitmap)
+            processedBitmap = cropAndResize(
+                decodedBitmap
+            )
 
             temporaryFile = File.createTempFile(
                 TEMP_FILE_PREFIX,
@@ -61,22 +65,30 @@ class ProfileImageStorage(
             )
 
             FileOutputStream(temporaryFile).use { outputStream ->
-                val compressedSuccessfully = processedBitmap.compress(
-                    Bitmap.CompressFormat.JPEG,
-                    JPEG_QUALITY,
-                    outputStream
-                )
+                val compressedSuccessfully =
+                    processedBitmap.compress(
+                        Bitmap.CompressFormat.JPEG,
+                        JPEG_QUALITY,
+                        outputStream
+                    )
 
                 if (!compressedSuccessfully) {
-                    throw IOException("Não foi possível comprimir a imagem.")
+                    throw IOException(
+                        "Não foi possível comprimir a imagem."
+                    )
                 }
 
                 outputStream.flush()
                 outputStream.fd.sync()
             }
 
-            if (!temporaryFile.exists() || temporaryFile.length() == 0L) {
-                throw IOException("A imagem processada não pôde ser salva.")
+            if (
+                !temporaryFile.exists() ||
+                temporaryFile.length() == 0L
+            ) {
+                throw IOException(
+                    "A imagem processada não pôde ser salva."
+                )
             }
 
             val finalFile = File(
@@ -95,9 +107,15 @@ class ProfileImageStorage(
                 }
             }
 
-            if (!finalFile.exists() || finalFile.length() == 0L) {
+            if (
+                !finalFile.exists() ||
+                finalFile.length() == 0L
+            ) {
                 finalFile.delete()
-                throw IOException("A imagem final não pôde ser criada.")
+
+                throw IOException(
+                    "A imagem final não pôde ser criada."
+                )
             }
 
             return finalFile.absolutePath
@@ -147,7 +165,8 @@ class ProfileImageStorage(
      * privada filesDir/profile.
      */
     fun deleteProfileImage(path: String?): Boolean {
-        val file = getValidInternalImageFile(path) ?: return false
+        val file = getValidInternalImageFile(path)
+            ?: return false
 
         return runCatching {
             !file.exists() || file.delete()
@@ -159,25 +178,37 @@ class ProfileImageStorage(
      * privada de fotos de perfil.
      */
     fun imageExists(path: String?): Boolean {
-        val file = getValidInternalImageFile(path) ?: return false
+        val file = getValidInternalImageFile(path)
+            ?: return false
 
         return file.exists() &&
                 file.isFile &&
                 file.length() > 0L
     }
 
+    /**
+     * Faz uma validação inicial pelo MIME type.
+     *
+     * Alguns provedores podem não informar o tipo. Nesse caso, a imagem
+     * será validada durante a decodificação.
+     */
     private fun validateImageUri(uri: Uri) {
-        val mimeType = appContext.contentResolver.getType(uri)
+        val mimeType =
+            appContext.contentResolver.getType(uri)
 
-        /*
-         * Alguns provedores não informam o MIME type. Nesse caso, não
-         * rejeitamos imediatamente: a validação real ocorrerá ao decodificar.
-         */
-        if (mimeType != null && !mimeType.startsWith("image/")) {
-            throw IOException("O arquivo selecionado não é uma imagem válida.")
+        if (
+            mimeType != null &&
+            !mimeType.startsWith("image/")
+        ) {
+            throw IOException(
+                "O arquivo selecionado não é uma imagem válida."
+            )
         }
     }
 
+    /**
+     * Garante a existência da pasta privada das fotos de perfil.
+     */
     private fun ensureProfileDirectoryExists() {
         if (profileDirectory.exists()) {
             if (!profileDirectory.isDirectory) {
@@ -197,60 +228,85 @@ class ProfileImageStorage(
     }
 
     /**
-     * Faz uma primeira leitura somente das dimensões e, depois, abre a imagem
-     * novamente usando inSampleSize.
+     * Faz uma primeira leitura somente das dimensões da imagem.
      *
-     * Dessa forma, uma foto de 8.000 x 6.000 pixels não é carregada
-     * integralmente na memória.
+     * Depois, abre a imagem novamente usando inSampleSize, evitando carregar
+     * uma fotografia muito grande integralmente na memória.
      */
-    private fun decodeSampledBitmap(uri: Uri): Bitmap? {
-        val boundsOptions = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
+    private fun decodeSampledBitmap(uri: Uri): Bitmap {
+        val boundsOptions =
+            BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
 
-        appContext.contentResolver.openInputStream(uri)?.use { inputStream ->
+        /*
+         * Nesta primeira leitura, BitmapFactory.decodeStream retorna null
+         * propositalmente porque inJustDecodeBounds está ativado.
+         *
+         * Por isso verificamos apenas se o InputStream foi aberto e depois
+         * analisamos outWidth e outHeight.
+         */
+        val boundsInputStream =
+            appContext.contentResolver.openInputStream(uri)
+                ?: throw IOException(
+                    "Não foi possível abrir a imagem selecionada."
+                )
+
+        boundsInputStream.use { inputStream ->
             BitmapFactory.decodeStream(
                 inputStream,
                 null,
                 boundsOptions
             )
-        } ?: throw IOException("Não foi possível abrir a imagem selecionada.")
+        }
 
         if (
             boundsOptions.outWidth <= 0 ||
             boundsOptions.outHeight <= 0
         ) {
-            throw IOException("O arquivo selecionado não contém uma imagem válida.")
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = calculateInSampleSize(
-                originalWidth = boundsOptions.outWidth,
-                originalHeight = boundsOptions.outHeight,
-                requestedSize = IMAGE_SIZE
+            throw IOException(
+                "O arquivo selecionado não contém uma imagem válida."
             )
-
-            inPreferredConfig = Bitmap.Config.ARGB_8888
         }
 
-        return appContext.contentResolver
-            .openInputStream(uri)
-            ?.use { inputStream ->
-                BitmapFactory.decodeStream(
-                    inputStream,
-                    null,
-                    decodeOptions
+        val decodeOptions =
+            BitmapFactory.Options().apply {
+                inSampleSize = calculateInSampleSize(
+                    originalWidth =
+                        boundsOptions.outWidth,
+                    originalHeight =
+                        boundsOptions.outHeight,
+                    requestedSize =
+                        IMAGE_SIZE
                 )
+
+                inPreferredConfig =
+                    Bitmap.Config.ARGB_8888
             }
-            ?: throw IOException("Não foi possível ler a imagem selecionada.")
+
+        val imageInputStream =
+            appContext.contentResolver.openInputStream(uri)
+                ?: throw IOException(
+                    "Não foi possível ler a imagem selecionada."
+                )
+
+        return imageInputStream.use { inputStream ->
+            BitmapFactory.decodeStream(
+                inputStream,
+                null,
+                decodeOptions
+            )
+        } ?: throw IOException(
+            "Não foi possível interpretar a imagem selecionada."
+        )
     }
 
     /**
      * Calcula uma amostragem em potências de 2.
      *
      * Exemplo:
-     * 8000 x 6000 pode ser decodificada inicialmente perto de 1000 x 750,
-     * em vez de ocupar memória como bitmap completo.
+     * uma imagem de 8000 x 6000 pode ser inicialmente decodificada perto
+     * de 1000 x 750, em vez de ocupar memória como bitmap completo.
      */
     private fun calculateInSampleSize(
         originalWidth: Int,
@@ -264,20 +320,33 @@ class ProfileImageStorage(
             originalHeight
         )
 
-        while (smallestDimension / (sampleSize * 2) >= requestedSize) {
+        while (
+            smallestDimension /
+            (sampleSize * 2) >= requestedSize
+        ) {
             sampleSize *= 2
         }
 
-        return max(1, sampleSize)
+        return max(
+            1,
+            sampleSize
+        )
     }
 
     /**
      * Recorta a área central em formato quadrado e gera o bitmap final
      * com 512 x 512 pixels.
      */
-    private fun cropAndResize(source: Bitmap): Bitmap {
-        if (source.width <= 0 || source.height <= 0) {
-            throw IOException("A imagem possui dimensões inválidas.")
+    private fun cropAndResize(
+        source: Bitmap
+    ): Bitmap {
+        if (
+            source.width <= 0 ||
+            source.height <= 0
+        ) {
+            throw IOException(
+                "A imagem possui dimensões inválidas."
+            )
         }
 
         val cropSize = minOf(
@@ -285,16 +354,20 @@ class ProfileImageStorage(
             source.height
         )
 
-        val startX = (source.width - cropSize) / 2
-        val startY = (source.height - cropSize) / 2
+        val startX =
+            (source.width - cropSize) / 2
 
-        val croppedBitmap = Bitmap.createBitmap(
-            source,
-            startX,
-            startY,
-            cropSize,
-            cropSize
-        )
+        val startY =
+            (source.height - cropSize) / 2
+
+        val croppedBitmap =
+            Bitmap.createBitmap(
+                source,
+                startX,
+                startY,
+                cropSize,
+                cropSize
+            )
 
         if (
             croppedBitmap.width == IMAGE_SIZE &&
@@ -312,8 +385,9 @@ class ProfileImageStorage(
             )
         } finally {
             /*
-             * Se createBitmap devolveu o próprio source, não podemos reciclá-lo
-             * aqui, pois ele ainda será descartado pelo bloco finally externo.
+             * Se createBitmap devolveu o próprio bitmap de origem, não
+             * podemos reciclá-lo aqui. Ele será descartado no finally
+             * de saveProfileImage.
              */
             if (
                 croppedBitmap !== source &&
@@ -327,15 +401,22 @@ class ProfileImageStorage(
     /**
      * Impede que um caminho arbitrário seja excluído.
      *
-     * Somente arquivos cujo caminho canônico esteja dentro de
+     * Somente arquivos cujo caminho canônico esteja diretamente dentro de
      * filesDir/profile são considerados válidos.
      */
-    private fun getValidInternalImageFile(path: String?): File? {
-        if (path.isNullOrBlank()) return null
+    private fun getValidInternalImageFile(
+        path: String?
+    ): File? {
+        if (path.isNullOrBlank()) {
+            return null
+        }
 
         return runCatching {
-            val directory = profileDirectory.canonicalFile
-            val candidate = File(path).canonicalFile
+            val directory =
+                profileDirectory.canonicalFile
+
+            val candidate =
+                File(path).canonicalFile
 
             val isInsideProfileDirectory =
                 candidate.parentFile == directory

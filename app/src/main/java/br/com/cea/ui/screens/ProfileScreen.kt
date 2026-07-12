@@ -1,19 +1,33 @@
 package br.com.cea.ui
 
+import android.content.ActivityNotFoundException
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,15 +35,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.content.FileProvider
 import br.com.cea.data.CeaDatabaseHelper
 import br.com.cea.model.UserProfile
 import br.com.cea.service.ProfileImageStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     modifier: Modifier,
@@ -57,10 +74,27 @@ fun ProfileScreen(
         mutableStateOf(false)
     }
 
+    /*
+     * Guardamos URI e caminho como String para que sobrevivam a uma
+     * eventual recriação da Activity enquanto a câmera estiver aberta.
+     */
+    var pendingCameraUri by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
+    var pendingCameraFilePath by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
     val coroutineScope = rememberCoroutineScope()
+
     val snackbarHostState = remember {
         SnackbarHostState()
     }
+
+    val photoOptionsSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -94,28 +128,52 @@ fun ProfileScreen(
         }
     }
 
-    fun processSelectedImage(uri: android.net.Uri) {
+    fun clearPendingCameraFile() {
+        val path = pendingCameraFilePath
+
+        if (!path.isNullOrBlank()) {
+            runCatching {
+                val file = File(path)
+
+                if (file.exists()) {
+                    file.delete()
+                }
+            }
+        }
+
+        pendingCameraUri = null
+        pendingCameraFilePath = null
+    }
+
+    fun processSelectedImage(
+        uri: Uri,
+        temporaryCameraFilePath: String? = null
+    ) {
         if (isProcessingImage) return
 
         coroutineScope.launch {
             isProcessingImage = true
 
-            val previousImagePath = currentProfile.profileImagePath
+            val previousImagePath =
+                currentProfile.profileImagePath
 
             try {
                 val updatedProfile = withContext(Dispatchers.IO) {
                     val newImagePath =
                         profileImageStorage.saveProfileImage(uri)
 
-                    val profileWithNewImage = currentProfile.copy(
-                        profileImagePath = newImagePath
-                    )
+                    val profileWithNewImage =
+                        currentProfile.copy(
+                            profileImagePath = newImagePath
+                        )
 
                     try {
-                        database.saveProfile(profileWithNewImage)
+                        database.saveProfile(
+                            profileWithNewImage
+                        )
                     } catch (error: Exception) {
                         /*
-                         * Se o banco falhar, removemos a imagem recém-criada
+                         * Caso o banco falhe, removemos a nova imagem
                          * e mantemos a foto anterior.
                          */
                         profileImageStorage.deleteProfileImage(
@@ -126,8 +184,8 @@ fun ProfileScreen(
                     }
 
                     /*
-                     * A foto antiga só é removida depois que o novo caminho
-                     * foi salvo com sucesso no SQLite.
+                     * A foto anterior somente é removida após o novo
+                     * caminho ter sido salvo com sucesso no SQLite.
                      */
                     if (
                         !previousImagePath.isNullOrBlank() &&
@@ -165,6 +223,31 @@ fun ProfileScreen(
                     "Não foi possível salvar sua foto. Tente novamente."
                 )
             } finally {
+                /*
+                 * A foto tirada pela câmera é apenas temporária.
+                 * A versão definitiva já foi criada pelo ProfileImageStorage.
+                 */
+                if (!temporaryCameraFilePath.isNullOrBlank()) {
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            val temporaryFile =
+                                File(temporaryCameraFilePath)
+
+                            if (temporaryFile.exists()) {
+                                temporaryFile.delete()
+                            }
+                        }
+                    }
+
+                    if (
+                        pendingCameraFilePath ==
+                        temporaryCameraFilePath
+                    ) {
+                        pendingCameraUri = null
+                        pendingCameraFilePath = null
+                    }
+                }
+
                 isProcessingImage = false
             }
         }
@@ -187,15 +270,18 @@ fun ProfileScreen(
 
             try {
                 val updatedProfile = withContext(Dispatchers.IO) {
-                    val profileWithoutImage = currentProfile.copy(
-                        profileImagePath = null
-                    )
+                    val profileWithoutImage =
+                        currentProfile.copy(
+                            profileImagePath = null
+                        )
 
                     /*
                      * Primeiro atualizamos o banco.
-                     * Só depois removemos o arquivo físico.
+                     * Depois removemos o arquivo físico.
                      */
-                    database.saveProfile(profileWithoutImage)
+                    database.saveProfile(
+                        profileWithoutImage
+                    )
 
                     profileImageStorage.deleteProfileImage(
                         imagePathToRemove
@@ -225,12 +311,36 @@ fun ProfileScreen(
             contract = ActivityResultContracts.PickVisualMedia()
         ) { selectedUri ->
             /*
-             * Quando o usuário cancela o Photo Picker,
-             * selectedUri será null. Nesse caso, não fazemos nada
-             * e não exibimos mensagem de erro.
+             * Se o usuário cancelar o seletor, selectedUri será null.
+             * Nesse caso, nenhuma ação ou mensagem será exibida.
              */
             if (selectedUri != null) {
                 processSelectedImage(selectedUri)
+            }
+        }
+
+    val cameraLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.TakePicture()
+        ) { photoCaptured ->
+            val uri = pendingCameraUri?.let(Uri::parse)
+            val temporaryPath = pendingCameraFilePath
+
+            if (
+                photoCaptured &&
+                uri != null &&
+                !temporaryPath.isNullOrBlank()
+            ) {
+                processSelectedImage(
+                    uri = uri,
+                    temporaryCameraFilePath = temporaryPath
+                )
+            } else {
+                /*
+                 * O usuário cancelou a câmera ou a captura não foi concluída.
+                 * Nenhuma mensagem de erro é necessária.
+                 */
+                clearPendingCameraFile()
             }
         }
 
@@ -246,22 +356,95 @@ fun ProfileScreen(
         )
     }
 
-    fun handleAvatarClick() {
+    fun openCamera() {
         if (isProcessingImage) return
 
-        if (currentProfile.profileImagePath.isNullOrBlank()) {
-            openPhotoPicker()
-        } else {
-            showPhotoOptions = true
+        showPhotoOptions = false
+
+        var temporaryFile: File? = null
+
+        try {
+            val cameraDirectory = File(
+                context.filesDir,
+                "profile_camera"
+            )
+
+            if (
+                !cameraDirectory.exists() &&
+                !cameraDirectory.mkdirs()
+            ) {
+                throw IOException(
+                    "Não foi possível preparar a câmera."
+                )
+            }
+
+            if (!cameraDirectory.isDirectory) {
+                throw IOException(
+                    "Não foi possível acessar a pasta da câmera."
+                )
+            }
+
+            temporaryFile = File.createTempFile(
+                "camera_",
+                ".jpg",
+                cameraDirectory
+            )
+
+            val cameraUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                temporaryFile
+            )
+
+            pendingCameraUri = cameraUri.toString()
+            pendingCameraFilePath = temporaryFile.absolutePath
+
+            cameraLauncher.launch(cameraUri)
+        } catch (_: ActivityNotFoundException) {
+            temporaryFile?.delete()
+            pendingCameraUri = null
+            pendingCameraFilePath = null
+
+            showMessage(
+                "Nenhum aplicativo de câmera foi encontrado."
+            )
+        } catch (_: SecurityException) {
+            temporaryFile?.delete()
+            pendingCameraUri = null
+            pendingCameraFilePath = null
+
+            showMessage(
+                "Não foi possível abrir a câmera."
+            )
+        } catch (error: IOException) {
+            temporaryFile?.delete()
+            pendingCameraUri = null
+            pendingCameraFilePath = null
+
+            showMessage(
+                error.message
+                    ?: "Não foi possível preparar a câmera."
+            )
+        } catch (_: Exception) {
+            temporaryFile?.delete()
+            pendingCameraUri = null
+            pendingCameraFilePath = null
+
+            showMessage(
+                "Não foi possível abrir a câmera. Tente novamente."
+            )
         }
     }
 
+    fun handleAvatarClick() {
+        if (isProcessingImage) return
+
+        showPhotoOptions = true
+    }
+
     /*
-     * Caso o caminho exista no banco, mas o arquivo interno tenha sido
-     * apagado ou esteja ausente, limpamos o campo silenciosamente.
-     *
-     * O usuário verá as iniciais ou o botão de adicionar foto,
-     * sem travamento e sem mensagem técnica.
+     * Se o banco possuir um caminho, mas o arquivo interno tiver
+     * desaparecido, limpamos o campo silenciosamente.
      */
     LaunchedEffect(currentProfile.profileImagePath) {
         val currentImagePath =
@@ -560,59 +743,142 @@ fun ProfileScreen(
     }
 
     if (showPhotoOptions) {
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = {
                 showPhotoOptions = false
             },
-            title = {
-                Text(
-                    text = "Foto de perfil"
+            sheetState = photoOptionsSheetState,
+            containerColor = CeaColors.Card,
+            contentColor = CeaColors.Text
+        ) {
+            Text(
+                text = "Foto de perfil",
+                color = CeaColors.Text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 4.dp,
+                    bottom = 12.dp
                 )
-            },
-            text = {
-                Text(
-                    text = "Escolha o que deseja fazer com sua foto."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        openPhotoPicker()
-                    }
-                ) {
+            )
+
+            ListItem(
+                headlineContent = {
                     Text(
-                        text = "Alterar foto",
-                        color = CeaColors.Green
+                        text = "Tirar foto",
+                        color = CeaColors.Text
                     )
+                },
+                supportingContent = {
+                    Text(
+                        text = "Usar a câmera do dispositivo",
+                        color = CeaColors.Muted
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.CameraAlt,
+                        contentDescription = null,
+                        tint = CeaColors.Green
+                    )
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = Color.Transparent
+                ),
+                modifier = Modifier.clickable {
+                    openCamera()
                 }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(
-                        onClick = {
-                            showPhotoOptions = false
-                            showRemoveConfirmation = true
-                        }
-                    ) {
+            )
+
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = "Escolher da galeria",
+                        color = CeaColors.Text
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = "Selecionar uma imagem do dispositivo",
+                        color = CeaColors.Muted
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.PhotoLibrary,
+                        contentDescription = null,
+                        tint = CeaColors.Green
+                    )
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = Color.Transparent
+                ),
+                modifier = Modifier.clickable {
+                    openPhotoPicker()
+                }
+            )
+
+            if (
+                !currentProfile.profileImagePath.isNullOrBlank()
+            ) {
+                ListItem(
+                    headlineContent = {
                         Text(
-                            text = "Remover",
+                            text = "Remover foto",
                             color = CeaColors.Red
                         )
-                    }
-
-                    TextButton(
-                        onClick = {
-                            showPhotoOptions = false
-                        }
-                    ) {
+                    },
+                    supportingContent = {
                         Text(
-                            text = "Cancelar",
+                            text = "Voltar para o avatar sem foto",
                             color = CeaColors.Muted
                         )
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = null,
+                            tint = CeaColors.Red
+                        )
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = Color.Transparent
+                    ),
+                    modifier = Modifier.clickable {
+                        showPhotoOptions = false
+                        showRemoveConfirmation = true
                     }
-                }
+                )
             }
-        )
+
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = "Cancelar",
+                        color = CeaColors.Text
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = null,
+                        tint = CeaColors.Muted
+                    )
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = Color.Transparent
+                ),
+                modifier = Modifier.clickable {
+                    showPhotoOptions = false
+                }
+            )
+
+            Spacer(
+                modifier = Modifier.height(16.dp)
+            )
+        }
     }
 
     if (showRemoveConfirmation) {

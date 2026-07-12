@@ -50,10 +50,10 @@ fun ProfileScreen(
         Spacer(Modifier.height(18.dp))
         CeaCard {
             SectionTitle("Hidratacao")
-            Text("$waterMl ml de 2500 ml", color = CeaColors.Muted, fontSize = 12.sp)
+            Text("$waterMl ml de ${profile.dailyWaterGoalMl} ml", color = CeaColors.Muted, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = { (waterMl / 2500f).coerceIn(0f, 1f) },
+                progress = { (waterMl.toFloat() / profile.dailyWaterGoalMl.toFloat()).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth(),
                 color = CeaColors.Green,
                 trackColor = CeaColors.CardAlt

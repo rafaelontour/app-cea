@@ -29,7 +29,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 objective TEXT,
                 frequency_per_week INTEGER,
                 hours_per_day REAL,
-                public_profile INTEGER
+                public_profile INTEGER,
+                daily_water_goal_ml INTEGER DEFAULT 2500
             )
             """.trimIndent()
         )
@@ -89,20 +90,12 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        listOf(
-            "water_logs",
-            "hydration_goals",
-            "weight_bmi_history",
-            "achievements",
-            "weekly_goals",
-            "scheduled_workouts",
-            "workout_history",
-            "exercise_catalog",
-            "workout_exercises",
-            "workouts",
-            "users"
-        ).forEach { db.execSQL("DROP TABLE IF EXISTS $it") }
-        onCreate(db)
+        if (oldVersion < 9) {
+            db.execSQL("ALTER TABLE users ADD COLUMN daily_water_goal_ml INTEGER DEFAULT 2500")
+        }
+        if (oldVersion < 10) {
+            try { db.execSQL("ALTER TABLE users ADD COLUMN daily_water_goal_ml INTEGER DEFAULT 2500") } catch (_: Exception) {}
+        }
     }
 
     fun saveProfile(profile: UserProfile): Long {
@@ -121,6 +114,7 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 put("frequency_per_week", profile.frequencyPerWeek)
                 put("hours_per_day", profile.hoursPerDay)
                 put("public_profile", if (profile.publicProfile) 1 else 0)
+                put("daily_water_goal_ml", profile.dailyWaterGoalMl)
             }
         )
     }
@@ -139,7 +133,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 objective = cursor.getString(cursor.getColumnIndexOrThrow("objective")),
                 frequencyPerWeek = cursor.getInt(cursor.getColumnIndexOrThrow("frequency_per_week")),
                 hoursPerDay = cursor.getDouble(cursor.getColumnIndexOrThrow("hours_per_day")),
-                publicProfile = cursor.getInt(cursor.getColumnIndexOrThrow("public_profile")) == 1
+                publicProfile = cursor.getInt(cursor.getColumnIndexOrThrow("public_profile")) == 1,
+                dailyWaterGoalMl = try { cursor.getInt(cursor.getColumnIndexOrThrow("daily_water_goal_ml")) } catch (e: Exception) { 2500 }
             )
         }
     }
@@ -989,6 +984,6 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 8
+        private const val DB_VERSION = 10
     }
 }

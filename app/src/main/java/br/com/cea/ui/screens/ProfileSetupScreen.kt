@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.Color
 import br.com.cea.model.UserProfile
 
 @Composable
@@ -23,6 +24,8 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
     var level by remember { mutableStateOf(profile.level.normalizedLevel()) }
     var frequency by remember { mutableStateOf(profile.frequencyPerWeek.toInputText()) }
     var hours by remember { mutableStateOf(profile.hoursPerDay.toInputText()) }
+    var waterGoal by remember { mutableStateOf(profile.dailyWaterGoalMl.toString()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -60,6 +63,8 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
                 CeaInput("Peso (kg)", weight, Modifier.weight(1f), KeyboardType.Number) { weight = it }
                 CeaInput("Altura (cm)", height, Modifier.weight(1f), KeyboardType.Number) { height = it }
             }
+            Spacer(Modifier.height(12.dp))
+            CeaInput("Meta de agua (ml)", waterGoal, keyboardType = KeyboardType.Number) { waterGoal = it }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -79,19 +84,40 @@ fun ProfileSetupScreen(profile: UserProfile, onSave: (UserProfile) -> Unit) {
         }
 
         Spacer(Modifier.height(18.dp))
-        PrimaryAction("Entrar no CEA", Modifier.fillMaxWidth()) {
-            onSave(
-                profile.copy(
-                    name = name.ifBlank { "Usuário" },
-                    age = age.toIntOrNull() ?: 0,
-                    weightKg = weight.toDoubleOrNull() ?: 0.0,
-                    heightCm = height.toDoubleOrNull() ?: 0.0,
-                    objective = objective,
-                    level = level,
-                    frequencyPerWeek = frequency.toIntOrNull() ?: 3,
-                    hoursPerDay = hours.toDoubleOrNull() ?: 1.0
-                )
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage!!,
+                color = Color(0xFFCF6679),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+        }
+        PrimaryAction("Entrar no CEA", Modifier.fillMaxWidth()) {
+            val ageVal = age.toIntOrNull() ?: 0
+            val weightVal = weight.toDoubleOrNull() ?: 0.0
+            val heightVal = height.toDoubleOrNull() ?: 0.0
+            when {
+                name.isBlank() -> { errorMessage = "Preencha o nome" }
+                ageVal <= 0 -> { errorMessage = "Preencha a idade" }
+                weightVal <= 0.0 -> { errorMessage = "Preencha o peso" }
+                heightVal <= 0.0 -> { errorMessage = "Preencha a altura" }
+                else -> {
+                    errorMessage = null
+                    onSave(
+                        profile.copy(
+                            name = name.ifBlank { "Usuário" },
+                            age = ageVal,
+                            weightKg = weightVal,
+                            heightCm = heightVal,
+                            objective = objective,
+                            level = level,
+                            frequencyPerWeek = frequency.toIntOrNull() ?: 3,
+                            hoursPerDay = hours.toDoubleOrNull() ?: 1.0,
+                            dailyWaterGoalMl = waterGoal.toIntOrNull() ?: 2500
+                        )
+                    )
+                }
+            }
         }
     }
 }

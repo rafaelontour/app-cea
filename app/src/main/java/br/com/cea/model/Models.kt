@@ -11,7 +11,8 @@ data class UserProfile(
     val objective: String = "",
     val frequencyPerWeek: Int = 0,
     val hoursPerDay: Double = 0.0,
-    val publicProfile: Boolean = false
+    val publicProfile: Boolean = false,
+    val dailyWaterGoalMl: Int = 2500
 )
 
 data class Exercise(

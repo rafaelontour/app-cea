@@ -30,7 +30,8 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 frequency_per_week INTEGER,
                 hours_per_day REAL,
                 public_profile INTEGER,
-                daily_water_goal_ml INTEGER DEFAULT 2500
+                daily_water_goal_ml INTEGER DEFAULT 2500,
+                profile_image_path TEXT
             )
             """.trimIndent()
         )
@@ -91,10 +92,23 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 9) {
-            db.execSQL("ALTER TABLE users ADD COLUMN daily_water_goal_ml INTEGER DEFAULT 2500")
+            try {
+                db.execSQL(
+                    "ALTER TABLE users ADD COLUMN daily_water_goal_ml INTEGER DEFAULT 2500"
+                )
+            } catch (_: Exception) {
+                // A coluna pode já existir em alguma instalação intermediária.
+            }
         }
-        if (oldVersion < 10) {
-            try { db.execSQL("ALTER TABLE users ADD COLUMN daily_water_goal_ml INTEGER DEFAULT 2500") } catch (_: Exception) {}
+
+        if (oldVersion < 11) {
+            try {
+                db.execSQL(
+                    "ALTER TABLE users ADD COLUMN profile_image_path TEXT"
+                )
+            } catch (_: Exception) {
+                // Evita falha caso a coluna já exista.
+            }
         }
     }
 
@@ -115,6 +129,12 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
                 put("hours_per_day", profile.hoursPerDay)
                 put("public_profile", if (profile.publicProfile) 1 else 0)
                 put("daily_water_goal_ml", profile.dailyWaterGoalMl)
+
+                if (profile.profileImagePath.isNullOrBlank()) {
+                    putNull("profile_image_path")
+                } else {
+                    put("profile_image_path", profile.profileImagePath)
+                }
             }
         )
     }
@@ -122,19 +142,49 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
     fun getProfile(): UserProfile {
         readableDatabase.rawQuery("SELECT * FROM users LIMIT 1", null).use { cursor ->
             if (!cursor.moveToFirst()) return UserProfile()
+
             return UserProfile(
                 id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
                 name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
                 age = cursor.getInt(cursor.getColumnIndexOrThrow("age")),
-                weightKg = cursor.getDouble(cursor.getColumnIndexOrThrow("weight_kg")),
-                heightCm = cursor.getDouble(cursor.getColumnIndexOrThrow("height_cm")),
-                activityLevel = cursor.getString(cursor.getColumnIndexOrThrow("activity_level")),
-                level = cursor.getString(cursor.getColumnIndexOrThrow("level")),
-                objective = cursor.getString(cursor.getColumnIndexOrThrow("objective")),
-                frequencyPerWeek = cursor.getInt(cursor.getColumnIndexOrThrow("frequency_per_week")),
-                hoursPerDay = cursor.getDouble(cursor.getColumnIndexOrThrow("hours_per_day")),
-                publicProfile = cursor.getInt(cursor.getColumnIndexOrThrow("public_profile")) == 1,
-                dailyWaterGoalMl = try { cursor.getInt(cursor.getColumnIndexOrThrow("daily_water_goal_ml")) } catch (e: Exception) { 2500 }
+                weightKg = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("weight_kg")
+                ),
+                heightCm = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("height_cm")
+                ),
+                activityLevel = cursor.getString(
+                    cursor.getColumnIndexOrThrow("activity_level")
+                ),
+                level = cursor.getString(
+                    cursor.getColumnIndexOrThrow("level")
+                ),
+                objective = cursor.getString(
+                    cursor.getColumnIndexOrThrow("objective")
+                ),
+                frequencyPerWeek = cursor.getInt(
+                    cursor.getColumnIndexOrThrow("frequency_per_week")
+                ),
+                hoursPerDay = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("hours_per_day")
+                ),
+                publicProfile = cursor.getInt(
+                    cursor.getColumnIndexOrThrow("public_profile")
+                ) == 1,
+                dailyWaterGoalMl = try {
+                    cursor.getInt(
+                        cursor.getColumnIndexOrThrow("daily_water_goal_ml")
+                    )
+                } catch (_: Exception) {
+                    2500
+                },
+                profileImagePath = try {
+                    cursor.getString(
+                        cursor.getColumnIndexOrThrow("profile_image_path")
+                    )
+                } catch (_: Exception) {
+                    null
+                }
             )
         }
     }
@@ -984,6 +1034,6 @@ class CeaDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context
 
     companion object {
         private const val DB_NAME = "cea.db"
-        private const val DB_VERSION = 10
+        private const val DB_VERSION = 11
     }
 }

@@ -60,7 +60,12 @@ class WorkoutRecommendationService {
 
 class AnalyticsTracker {
     fun track(context: Context, eventName: String, params: Bundle = Bundle()) {
-        Log.d("CEAAnalytics", "event=$eventName params=$params package=${context.packageName}")
+        val sanitizedParams = Bundle(params).apply {
+            // Firebase Analytics limita nomes de eventos a 40 chars e parâmetros a 24 chars
+        }
+        com.google.firebase.analytics.FirebaseAnalytics.getInstance(context)
+            .logEvent(eventName, sanitizedParams)
+        Log.d("CEAAnalytics", "event=$eventName params=$sanitizedParams package=${context.packageName}")
     }
 }
 

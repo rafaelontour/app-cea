@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "329811446320",
+    "project_id": "cea-analytics",
+    "storage_bucket": "cea-analytics.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:329811446320:android:d16ab0c7ab984506397bf5",
+        "android_client_info": {
+          "package_name": "br.com.cea"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD42qzl6mx_UBnlUPyMNGNclAqNQ4YECn8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

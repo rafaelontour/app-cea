@@ -89,33 +89,17 @@ class ApiClient(private val baseUrl: String) {
 }
 
 class ExerciseImageClient(
-    private val baseUrl: String = DEFAULT_BASE_URL
+    private val context: Context
 ) {
     fun loadBitmap(imageUri: String): Bitmap? {
         if (imageUri.isBlank()) return null
-
-        val imagePath = imageUri.removePrefix("images/").trimStart('/')
-        val resolvedBaseUrl = baseUrl.ifBlank { DEFAULT_BASE_URL }.trimEnd('/')
+        val path = imageUri.trimStart('/')
         return try {
-            val connection = (URL("$resolvedBaseUrl/exercise-image/$imagePath").openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 5_000
-                readTimeout = 10_000
-            }
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
-            try {
-                connection.inputStream.use { input ->
-                    BitmapFactory.decodeStream(input)
-                }
-            } finally {
-                connection.disconnect()
+            context.assets.open(path).use { input ->
+                BitmapFactory.decodeStream(input)
             }
         } catch (_: Exception) {
             null
         }
-    }
-
-    companion object {
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:8080"
     }
 }

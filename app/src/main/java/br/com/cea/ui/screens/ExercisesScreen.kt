@@ -1,5 +1,6 @@
 package br.com.cea.ui
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,7 +36,7 @@ fun ExercisesScreen(
     profile: UserProfile,
     exercises: List<Exercise>,
     selectedExercises: MutableList<Exercise>,
-    imageBackendUrl: String,
+    context: Context,
     initialMuscleFilter: String = "",
     onLevelIncrease: (String) -> Unit = {},
     onBack: () -> Unit
@@ -222,7 +223,7 @@ fun ExercisesScreen(
             exercise = selectedExercise!!,
             selectedExercises = selectedExercises,
             profile = profile,
-            imageBackendUrl = imageBackendUrl,
+            context = context,
             onLevelIncrease = onLevelIncrease,
             onDismiss = { selectedExercise = null }
         )
@@ -443,7 +444,7 @@ fun ExerciseDetailsDialog(
     exercise: Exercise,
     selectedExercises: MutableList<Exercise>,
     profile: UserProfile,
-    imageBackendUrl: String,
+    context: Context,
     onLevelIncrease: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -490,7 +491,7 @@ fun ExerciseDetailsDialog(
                 }
                 Spacer(Modifier.height(16.dp))
 
-                ExerciseImageCarousel(imageUris = imageUris, imageBackendUrl = imageBackendUrl)
+                ExerciseImageCarousel(imageUris = imageUris, context = context)
                 Spacer(Modifier.height(16.dp))
 
                 Button(
@@ -631,12 +632,12 @@ fun ExerciseDetailsDialog(
 @Composable
 private fun ExerciseImageCarousel(
     imageUris: List<String>,
-    imageBackendUrl: String
+    context: Context
 ) {
-    val imageClient = remember(imageBackendUrl) { ExerciseImageClient(imageBackendUrl) }
+    val imageClient = remember { ExerciseImageClient(context) }
     var currentIndex by remember(imageUris) { mutableIntStateOf(0) }
-    var bitmap by remember(imageUris, currentIndex, imageBackendUrl) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var isLoading by remember(imageUris, currentIndex, imageBackendUrl) { mutableStateOf(imageUris.isNotEmpty()) }
+    var bitmap by remember(imageUris, currentIndex) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var isLoading by remember(imageUris, currentIndex) { mutableStateOf(imageUris.isNotEmpty()) }
     var dragDistance by remember { mutableFloatStateOf(0f) }
 
     fun previousImage() {
@@ -651,7 +652,7 @@ private fun ExerciseImageCarousel(
         }
     }
 
-    LaunchedEffect(imageUris, currentIndex, imageBackendUrl) {
+    LaunchedEffect(imageUris, currentIndex) {
         bitmap = null
         isLoading = imageUris.isNotEmpty()
         if (imageUris.isNotEmpty()) {

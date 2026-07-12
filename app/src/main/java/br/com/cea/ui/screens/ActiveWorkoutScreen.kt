@@ -1,5 +1,6 @@
 package br.com.cea.ui
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,7 +39,7 @@ fun ActiveWorkoutScreen(
     modifier: Modifier,
     workout: Workout,
     database: CeaDatabaseHelper,
-    imageBackendUrl: String,
+    context: Context,
     onFinished: () -> Unit
 ) {
     var currentExerciseIndex by remember { mutableIntStateOf(0) }
@@ -152,7 +153,7 @@ fun ActiveWorkoutScreen(
                         Spacer(Modifier.height(12.dp))
                         ExercisePreviewImage(
                             exercise = nextExerciseObj,
-                            imageBackendUrl = imageBackendUrl,
+                            context = context,
                             label = "Proximo exercicio"
                         )
                         Spacer(Modifier.height(6.dp))
@@ -201,7 +202,7 @@ fun ActiveWorkoutScreen(
                         Spacer(Modifier.height(12.dp))
                         ExercisePreviewImage(
                             exercise = currentExerciseObj,
-                            imageBackendUrl = imageBackendUrl,
+                            context = context,
                             label = "Referencia visual"
                         )
                         Spacer(Modifier.height(6.dp))
@@ -373,13 +374,13 @@ fun ActiveWorkoutScreen(
 @Composable
 private fun ExercisePreviewImage(
     exercise: Exercise,
-    imageBackendUrl: String,
+    context: Context,
     label: String
 ) {
     val imageUris = remember(exercise.imageUri) { activeWorkoutImageUris(exercise.imageUri) }
-    val imageClient = remember(imageBackendUrl) { ExerciseImageClient(imageBackendUrl) }
+    val imageClient = remember { ExerciseImageClient(context) }
     var currentIndex by remember(imageUris) { mutableIntStateOf(0) }
-    var bitmap by remember(imageUris, currentIndex, imageBackendUrl) {
+    var bitmap by remember(imageUris, currentIndex) {
         mutableStateOf<android.graphics.Bitmap?>(null)
     }
 
@@ -387,7 +388,7 @@ private fun ExercisePreviewImage(
         currentIndex = 0
     }
 
-    LaunchedEffect(imageUris, currentIndex, imageBackendUrl) {
+    LaunchedEffect(imageUris, currentIndex) {
         bitmap = null
         if (imageUris.isNotEmpty()) {
             bitmap = withContext(Dispatchers.IO) {

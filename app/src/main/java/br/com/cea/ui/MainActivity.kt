@@ -41,7 +41,6 @@ import br.com.cea.model.Exercise
 import br.com.cea.model.Workout
 import br.com.cea.service.AnalyticsTracker
 import br.com.cea.service.BmiService
-import br.com.cea.service.ExerciseImageClient
 import br.com.cea.service.HydrationReminderReceiver
 import br.com.cea.service.WorkoutRecommendationService
 
@@ -108,7 +107,6 @@ private fun CeaApp(activity: MainActivity) {
     var editingWorkoutId by remember { mutableStateOf<Long?>(null) }
     var activeWorkout by remember { mutableStateOf<Workout?>(null) }
     var exerciseMuscleFilter by remember { mutableStateOf("") }
-    val imageBackendUrl = ExerciseImageClient.DEFAULT_BASE_URL
 
     LaunchedEffect(screen, refresh) {
         val updatedProfile = database.getProfile()
@@ -282,7 +280,7 @@ private fun CeaApp(activity: MainActivity) {
                 profile = profile,
                 exercises = database.listExercises(),
                 selectedExercises = selectedExercises,
-                imageBackendUrl = imageBackendUrl,
+                context = context,
                 initialMuscleFilter = exerciseMuscleFilter,
                 onLevelIncrease = { newLevel ->
                     promoteProfileLevelIfNeeded(newLevel)
@@ -303,7 +301,7 @@ private fun CeaApp(activity: MainActivity) {
                         modifier = modifier,
                         workout = workout,
                         database = database,
-                        imageBackendUrl = imageBackendUrl,
+                        context = context,
                         onFinished = {
                             screen = Screen.MyWorkouts
                             activeWorkout = null

@@ -12,11 +12,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -34,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
 import br.com.cea.data.CeaDatabaseHelper
@@ -67,6 +71,10 @@ fun ProfileScreen(
     }
 
     var showPhotoOptions by remember {
+        mutableStateOf(false)
+    }
+
+    var showPhotoPreview by remember {
         mutableStateOf(false)
     }
 
@@ -267,6 +275,7 @@ fun ProfileScreen(
         coroutineScope.launch {
             isProcessingImage = true
             showRemoveConfirmation = false
+            showPhotoPreview = false
 
             try {
                 val updatedProfile = withContext(Dispatchers.IO) {
@@ -348,6 +357,7 @@ fun ProfileScreen(
         if (isProcessingImage) return
 
         showPhotoOptions = false
+        showPhotoPreview = false
 
         photoPickerLauncher.launch(
             PickVisualMediaRequest(
@@ -360,6 +370,7 @@ fun ProfileScreen(
         if (isProcessingImage) return
 
         showPhotoOptions = false
+        showPhotoPreview = false
 
         var temporaryFile: File? = null
 
@@ -439,7 +450,17 @@ fun ProfileScreen(
     fun handleAvatarClick() {
         if (isProcessingImage) return
 
-        showPhotoOptions = true
+        if (currentProfile.profileImagePath.isNullOrBlank()) {
+            /*
+             * Sem foto: abre diretamente o menu com câmera e galeria.
+             */
+            showPhotoOptions = true
+        } else {
+            /*
+             * Com foto: abre primeiro a visualização ampliada.
+             */
+            showPhotoPreview = true
+        }
     }
 
     /*
@@ -467,6 +488,7 @@ fun ProfileScreen(
                 }
             }
 
+            showPhotoPreview = false
             currentProfile = profileWithoutMissingImage
             onProfileChanged(profileWithoutMissingImage)
         }
@@ -507,7 +529,7 @@ fun ProfileScreen(
                         ) {
                             "Adicionar foto"
                         } else {
-                            "Alterar foto"
+                            "Ver foto"
                         },
                         color = if (isProcessingImage) {
                             CeaColors.Muted
@@ -738,6 +760,99 @@ fun ProfileScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+        }
+    }
+
+    /*
+     * Com uma foto existente, o primeiro clique abre esta
+     * visualização ampliada. O menu de edição só será aberto
+     * quando o usuário tocar no botão de lápis.
+     */
+    if (
+        showPhotoPreview &&
+        !currentProfile.profileImagePath.isNullOrBlank()
+    ) {
+        Dialog(
+            onDismissRequest = {
+                showPhotoPreview = false
+            },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color.Black.copy(alpha = 0.96f)
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(
+                            horizontal = 12.dp,
+                            vertical = 16.dp
+                        ),
+                    horizontalArrangement =
+                        Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            showPhotoPreview = false
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription =
+                                "Fechar visualização da foto",
+                            tint = Color.White
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            /*
+                             * Fecha a visualização e abre o menu já
+                             * existente com câmera, galeria e remoção.
+                             */
+                            showPhotoPreview = false
+                            showPhotoOptions = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription =
+                                "Editar foto de perfil",
+                            tint = CeaColors.Green
+                        )
+                    }
+                }
+
+                UserAvatar(
+                    profileImagePath =
+                        currentProfile.profileImagePath,
+                    userName = currentProfile.name,
+                    size = 280.dp,
+                    modifier = Modifier.align(
+                        Alignment.Center
+                    )
+                )
+
+                Text(
+                    text = "Toque no lápis para alterar a foto",
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 32.dp)
+                )
             }
         }
     }
